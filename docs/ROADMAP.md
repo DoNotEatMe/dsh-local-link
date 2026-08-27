@@ -5,8 +5,11 @@
 - [x] Separate LAN gateway.
 - [x] HTTP and WebSocket proxy.
 - [x] One-time QR pairing.
+- [x] Automatic connection without a confirmation form.
+- [x] Open the desktop's currently selected Harness session after pairing.
+- [x] Native sidebar QR action and local address.
 - [x] Persistent per-device credentials and revocation.
-- [x] Native Settings section.
+- [x] Minimal paired-device revocation section in Settings.
 - [x] JSON-backed English and Chinese localization.
 - [x] Core unit and integration tests.
 

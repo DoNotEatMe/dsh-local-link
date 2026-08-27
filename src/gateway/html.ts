@@ -1,5 +1,6 @@
 const CLIENT_ID = 'dsh-local-link'
 const SETTINGS_ID = '@deepseek-ai/dsh-client-ui-settings'
+const RANDOM_UUID_POLYFILL = `if(!window.crypto.randomUUID){window.crypto.randomUUID=function(){const b=new Uint8Array(16);window.crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,value=>value.toString(16).padStart(2,'0'));return h.slice(0,4).join('')+'-'+h.slice(4,6).join('')+'-'+h.slice(6,8).join('')+'-'+h.slice(8,10).join('')+'-'+h.slice(10).join('')}};`
 
 interface BootEntry {
   id?: unknown
@@ -30,6 +31,11 @@ export function rewriteAuthenticatedIndex(html: string): string {
   const settings = entries.filter(entry => entry.id === SETTINGS_ID)
   if (settings.length !== 1 || !Array.isArray(settings[0]?.inject)) throw new Error('DSH settings boot entry is incompatible')
   if (!settings[0].inject.includes(CLIENT_ID)) settings[0].inject = [...settings[0].inject, CLIENT_ID]
-  const prefix = 'window.__DSH_LOCAL_LINK_AUTHENTICATED__=true;'
+  // Web Crypto's randomUUID is secure-context-only in browsers. Plain HTTP on
+  // a LAN IP is not a secure context, while DSH's browser RPC client requires
+  // randomUUID during startup. getRandomValues remains available there, so a
+  // small RFC 4122 v4 fallback keeps the stock client working without a local
+  // CA/certificate installation step.
+  const prefix = `${RANDOM_UUID_POLYFILL}window.__DSH_LOCAL_LINK_AUTHENTICATED__=true;`
   return `${html.slice(0, assignment.index)}${prefix}${assignment[0]}${JSON.stringify(manifest)};${html.slice(scriptEnd)}`
 }

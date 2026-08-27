@@ -2,7 +2,7 @@
 
 Lightweight mobile-browser access to [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) over a local network.
 
-`dsh-local-link` keeps the normal Harness server on loopback and exposes a small, separate LAN gateway. Pair a phone once with a QR code, then use the stock Harness UI from that browser. There is no cloud relay, tunnel provider, native app, extension marketplace, or replacement sidebar.
+`dsh-local-link` keeps the normal Harness server on loopback and exposes a small, separate LAN gateway. Click the phone button in the Harness sidebar, scan its QR code, and the browser opens the complete stock Harness UI at the session currently selected on the computer. There is no cloud relay, tunnel provider, native app, extension marketplace, or replacement sidebar.
 
 > Status: early development preview. The current gateway uses HTTP and is intended only for a trusted private network. HTTPS support is the next security milestone.
 
@@ -13,20 +13,23 @@ Existing mobile-access plugins tend to become complete remote-access platforms: 
 This project deliberately optimizes for:
 
 - **Local first:** the phone and computer are on the same private network.
-- **Lightweight:** three small runtime dependencies and no external service.
-- **Stock Harness UI:** no replacement layout and no sidebar-footer button.
+- **Lightweight:** two small runtime dependencies and no external service.
+- **Stock Harness UI:** one native sidebar action; no replacement layout or mobile shell.
 - **Native integration:** the control page is a normal Harness Settings section.
-- **Low-friction pairing:** scan one QR code; no account or password form.
+- **Low-friction connection:** scan one QR code; no confirmation, account, or password form.
 - **Maintainable localization:** all user-facing plugin copy is in JSON dictionaries.
 
 ## Current feature set
 
 - HTTP and WebSocket reverse proxy to `127.0.0.1:3080`.
+- Browser-compatible UUID fallback for stock Harness RPC on plain private-LAN HTTP.
 - Private-network and strict local-IP Host checks.
-- One-time QR pairing token with a five-minute default lifetime.
+- Sidebar phone action with the local address and a one-time QR code.
+- Automatic one-time pairing with a five-minute default token lifetime.
+- Transfer of the desktop's currently selected session into the newly paired browser.
 - Per-device random credential stored in an `HttpOnly`, `SameSite=Strict` cookie.
 - Only SHA-256 credential hashes are stored on disk.
-- Paired-device list and revocation from `Settings → Local Link`.
+- Paired-device list and revocation from `Settings → Local access`.
 - `pairing` and explicit `trusted-lan` modes.
 - English and Chinese dictionaries registered through Harness `LocaleRuntime`.
 - Responsive settings page without querying or replacing Harness DOM.
@@ -38,17 +41,29 @@ Requirements: Node.js 22.19+ (or 24+), DeepSeek Harness `0.1.1-rc.2`, and a work
 ```powershell
 npm install
 npm run verify
-dsh plugin --profile web add "D:\Projects\dsh-local-link"
+dsh plugin --profile web add (Get-Location).Path
 dsh web --profile web
 ```
 
-Open Harness on the computer, then select `Settings → Local Link`. Create a pairing QR and scan it with the phone connected to the same Wi-Fi.
+Open the desired session in Harness on the computer, click `Local access` at the bottom of the sidebar, and scan the QR code with a phone on the same Wi-Fi. The phone is registered automatically and redirected directly to that session in the full Harness interface. The session list and live conversation still come from the same Harness Host; the plugin only transfers the current selection between the two browser origins. `Settings → Local access` exists only to list paired devices and revoke access.
+
+## Product boundary
+
+The stable UI contract is intentionally small:
+
+- `Local access` in the desktop sidebar creates one fresh, five-minute QR code and shows the LAN address.
+- Closing and reopening the panel creates another QR code; a separate refresh control is unnecessary.
+- The Settings section contains only paired devices and `Revoke`, because access removal is the one persistent operation users need.
+- Gateway configuration stays in `cordis.patch.yml`; the UI does not duplicate developer-oriented address, mode, or retention controls.
+
+The plugin does not replace Harness navigation, session storage, conversation rendering, or theme handling.
 
 If `dsh` is not globally available, use the executable from the local Harness installation:
 
 ```powershell
-D:\AI\deepseek-harness\node_modules\.bin\dsh.CMD plugin --profile web add "D:\Projects\dsh-local-link"
-D:\AI\deepseek-harness\node_modules\.bin\dsh.CMD web --profile web
+$harnessRoot = "C:\path\to\deepseek-harness"
+& "$harnessRoot\node_modules\.bin\dsh.CMD" plugin --profile web add (Get-Location).Path
+& "$harnessRoot\node_modules\.bin\dsh.CMD" web --profile web
 ```
 
 ## Configuration
@@ -64,7 +79,7 @@ pairingTtlSeconds: 300
 deviceTtlDays: 90
 ```
 
-`trusted-lan` disables the device check. It is convenient for an isolated development VLAN, but `pairing` is the recommended default because a Harness session can execute commands and modify files.
+`trusted-lan` disables the device check. It is convenient for an isolated development VLAN, but automatic QR `pairing` is the recommended default because a Harness session can execute commands and modify files.
 
 ## Localization
 
@@ -75,7 +90,7 @@ src/locales/en.json
 src/locales/zh.json
 ```
 
-Both files must contain the same keys; the test suite enforces parity. Adding or editing text does not require touching the UI component. Harness `0.1.1-rc.2` currently exposes `en` and `zh` as selectable application locales, so those are the shipped dictionaries. When Harness adds another locale ID, add the matching JSON file and register it in `src/client.tsx`.
+Localization is JSON dictionaries registered through Harness `LocaleRuntime`: `en.json` and `zh.json` contain identical keys, and the active Harness language selects the dictionary. The parity test prevents one language from silently missing UI text. To add a Harness-supported locale, copy the keys into another JSON file and register it in `src/client.tsx`.
 
 ## Security boundary
 

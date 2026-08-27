@@ -1,5 +1,13 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import httpProxy from 'http-proxy'
+import {
+  createServer,
+  request as requestHttp,
+  type IncomingHttpHeaders,
+  type IncomingMessage,
+  type OutgoingHttpHeaders,
+  type Server,
+  type ServerResponse,
+} from 'node:http'
+import { connect, type Socket } from 'node:net'
 import { DeviceStore, type DeviceView } from '../auth/device-store.js'
 import { PairingTokens } from '../auth/pairing.js'
 import type { ResolvedConfig } from '../config.js'
@@ -9,6 +17,11 @@ import { PAIR_PAGE, PAIR_PATH } from './pair-page.js'
 
 const COOKIE_NAME = 'dsh_local_link_device'
 const MAX_PAIR_BODY = 4096
+const EVENT_PATHS = new Set(['/api/events.mux', '/api/events.host'])
+const HOP_BY_HOP_HEADERS = new Set([
+  'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
+  'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade',
+])
 
 function cookieValue(request: IncomingMessage, name: string): string | undefined {
   for (const part of (request.headers.cookie ?? '').split(';')) {
@@ -43,28 +56,46 @@ function send(response: ServerResponse, status: number, body: string, type = 'te
   response.end(body)
 }
 
-function rewriteProxyHeaders(headers: IncomingMessage['headers'], upstream: URL): void {
+function proxyRequestHeaders(request: IncomingMessage, upstream: URL, websocket = false): OutgoingHttpHeaders {
+  const headers: OutgoingHttpHeaders = {}
+  for (const [name, value] of Object.entries(request.headers)) {
+    const lower = name.toLowerCase()
+    if (value === undefined || lower === 'host' || lower === 'cookie'
+      || lower.startsWith('x-forwarded-') || (!websocket && HOP_BY_HOP_HEADERS.has(lower))) continue
+    headers[lower] = value
+  }
   headers.host = upstream.host
-  if (headers.origin !== undefined) headers.origin = upstream.origin
-  if (headers.referer !== undefined) headers.referer = `${upstream.origin}/`
+  headers.origin = upstream.origin
   headers['sec-fetch-site'] = 'same-origin'
-  delete headers['x-forwarded-for']
-  delete headers['x-forwarded-host']
-  delete headers['x-forwarded-proto']
+  if (request.headers.referer !== undefined) headers.referer = `${upstream.origin}/`
+  return headers
 }
 
-export interface GatewayStatus {
-  readonly running: boolean
-  readonly accessMode: ResolvedConfig['accessMode']
-  readonly addresses: readonly string[]
-  readonly devices: readonly DeviceView[]
-  readonly insecureHttp: true
+function proxyResponseHeaders(headers: IncomingHttpHeaders): OutgoingHttpHeaders {
+  const result: OutgoingHttpHeaders = {}
+  for (const [name, value] of Object.entries(headers)) {
+    const lower = name.toLowerCase()
+    if (value === undefined || HOP_BY_HOP_HEADERS.has(lower) || lower === 'set-cookie') continue
+    result[lower] = value
+  }
+  return result
+}
+
+function serializeHeaders(headers: OutgoingHttpHeaders): string[] {
+  const lines: string[] = []
+  for (const [name, value] of Object.entries(headers)) {
+    if (value === undefined) continue
+    if (Array.isArray(value)) {
+      for (const entry of value) lines.push(`${name}: ${entry}`)
+    } else lines.push(`${name}: ${String(value)}`)
+  }
+  return lines
 }
 
 export class LocalGateway {
   private readonly devices: DeviceStore
   private readonly pairing: PairingTokens
-  private readonly proxy = httpProxy.createProxyServer({ changeOrigin: true, xfwd: false })
+  private readonly upgradedSockets = new Set<Socket>()
   private server: Server | undefined
   private addresses: string[] = []
 
@@ -79,43 +110,13 @@ export class LocalGateway {
     this.addresses = this.config.listenHost === '0.0.0.0' ? privateInterfaceAddresses() : [this.config.listenHost]
     if (this.addresses.length === 0) throw new Error('no private IPv4 interface is available')
 
-    this.proxy.on('proxyRes', (proxyResponse, request, response) => {
-      if (request.url !== '/' || !String(proxyResponse.headers['content-type'] ?? '').includes('text/html')) return
-      const chunks: Buffer[] = []
-      proxyResponse.on('data', chunk => chunks.push(Buffer.from(chunk)))
-      proxyResponse.on('end', () => {
-        try {
-          const body = rewriteAuthenticatedIndex(Buffer.concat(chunks).toString('utf8'))
-          const outgoing = response as ServerResponse
-          outgoing.statusCode = proxyResponse.statusCode ?? 502
-          for (const [name, value] of Object.entries(proxyResponse.headers)) {
-            if (value !== undefined && name !== 'content-length' && name !== 'content-encoding' && name !== 'transfer-encoding') {
-              outgoing.setHeader(name, value)
-            }
-          }
-          outgoing.setHeader('content-length', Buffer.byteLength(body))
-          outgoing.setHeader('cache-control', 'no-store')
-          outgoing.end(body)
-        } catch (error) {
-          const outgoing = response as ServerResponse
-          if (!outgoing.headersSent) send(outgoing, 502, error instanceof Error ? error.message : 'index rewrite failed')
-          else outgoing.destroy()
-        }
-      })
-    })
-
     const server = createServer((request, response) => { void this.handle(request, response) })
     server.on('upgrade', (request, socket, head) => {
       if (!this.requestTrusted(request) || !this.authorized(request)) {
         socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
         return
       }
-      rewriteProxyHeaders(request.headers, this.config.upstreamOrigin)
-      this.proxy.ws(request, socket, head, { target: this.config.upstreamOrigin.origin })
-    })
-    this.proxy.on('error', (_error, _request, response) => {
-      if ('writeHead' in response && !response.headersSent) send(response, 502, 'DeepSeek Harness is unavailable')
-      else response.destroy()
+      void this.proxyWebSocket(request, socket as Socket, head)
     })
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
@@ -127,22 +128,16 @@ export class LocalGateway {
     this.server = server
   }
 
-  status(): GatewayStatus {
-    return {
-      running: this.server?.listening ?? false,
-      accessMode: this.config.accessMode,
-      addresses: this.addresses.map(address => `http://${address}:${this.config.listenPort}`),
-      devices: this.devices.list(),
-      insecureHttp: true,
-    }
+  pairedDevices(): readonly DeviceView[] {
+    return this.devices.list()
   }
 
-  issuePairing(): { readonly url: string; readonly expiresAt: string } {
+  issuePairing(sessionId?: string): { readonly url: string; readonly expiresAt: string } {
     const address = this.addresses[0]
     if (address === undefined) throw new Error('gateway is not running')
     const issued = this.pairing.issue()
     return {
-      url: `http://${address}:${this.config.listenPort}${PAIR_PATH}#token=${encodeURIComponent(issued.token)}`,
+      url: `http://${address}:${this.config.listenPort}${PAIR_PATH}#token=${encodeURIComponent(issued.token)}${sessionId === undefined ? '' : `&session=${encodeURIComponent(sessionId)}`}`,
       expiresAt: issued.expiresAt,
     }
   }
@@ -155,7 +150,8 @@ export class LocalGateway {
     const server = this.server
     this.server = undefined
     if (server === undefined) return
-    this.proxy.close()
+    for (const socket of this.upgradedSockets) socket.destroy()
+    this.upgradedSockets.clear()
     await new Promise<void>((resolve, reject) => server.close(error => error === undefined ? resolve() : reject(error)))
   }
 
@@ -190,8 +186,11 @@ export class LocalGateway {
           send(response, 410, 'Pairing token expired or already used')
           return
         }
-        const created = await this.devices.add(body.label)
-        response.setHeader('set-cookie', `${COOKIE_NAME}=${encodeURIComponent(created.token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(this.config.deviceTtlMs / 1000)}`)
+        const credential = cookieValue(request, COOKIE_NAME)
+        if (this.devices.authorize(credential) === undefined) {
+          const created = await this.devices.add(body.label)
+          response.setHeader('set-cookie', `${COOKIE_NAME}=${encodeURIComponent(created.token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(this.config.deviceTtlMs / 1000)}`)
+        }
         send(response, 204, '')
       } catch {
         send(response, 400, 'Invalid pairing request')
@@ -199,15 +198,84 @@ export class LocalGateway {
       return
     }
     if (!this.authorized(request)) {
-      send(response, 401, 'This browser is not paired. Create a QR code in Settings → Local Link on the computer.')
+      send(response, 401, 'This browser is not paired. Open Local access in the computer sidebar and scan its QR code.')
       return
     }
-    rewriteProxyHeaders(request.headers, this.config.upstreamOrigin)
-    const interceptIndex = request.method === 'GET' && url.pathname === '/'
-    if (interceptIndex) delete request.headers['accept-encoding']
-    this.proxy.web(request, response, {
-      target: this.config.upstreamOrigin.origin,
-      selfHandleResponse: interceptIndex,
+    this.proxyHttp(request, response, request.method === 'GET' && url.pathname === '/')
+  }
+
+  private proxyHttp(request: IncomingMessage, response: ServerResponse, interceptIndex: boolean): void {
+    const headers = proxyRequestHeaders(request, this.config.upstreamOrigin)
+    if (interceptIndex) headers['accept-encoding'] = 'identity'
+    const upstreamRequest = requestHttp({
+      hostname: this.config.upstreamOrigin.hostname,
+      port: Number(this.config.upstreamOrigin.port),
+      method: request.method,
+      path: request.url,
+      headers,
+      agent: false,
+    }, (upstreamResponse) => {
+      if (!interceptIndex || !String(upstreamResponse.headers['content-type'] ?? '').includes('text/html')) {
+        response.writeHead(upstreamResponse.statusCode ?? 502, proxyResponseHeaders(upstreamResponse.headers))
+        upstreamResponse.pipe(response)
+        return
+      }
+      const chunks: Buffer[] = []
+      upstreamResponse.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      upstreamResponse.on('end', () => {
+        try {
+          const body = rewriteAuthenticatedIndex(Buffer.concat(chunks).toString('utf8'))
+          const outgoing = proxyResponseHeaders(upstreamResponse.headers)
+          delete outgoing['content-length']
+          delete outgoing['content-encoding']
+          outgoing['content-length'] = Buffer.byteLength(body)
+          outgoing['cache-control'] = 'no-store'
+          response.writeHead(upstreamResponse.statusCode ?? 502, outgoing)
+          response.end(body)
+        } catch (error) {
+          if (!response.headersSent) send(response, 502, error instanceof Error ? error.message : 'index rewrite failed')
+          else response.destroy()
+        }
+      })
+    })
+    upstreamRequest.once('error', () => {
+      if (!response.headersSent) send(response, 502, 'DeepSeek Harness is unavailable')
+      else response.destroy()
+    })
+    request.pipe(upstreamRequest)
+  }
+
+  private async proxyWebSocket(request: IncomingMessage, client: Socket, head: Buffer): Promise<void> {
+    const target = new URL(request.url ?? '/', this.config.upstreamOrigin)
+    if (target.search !== '' || !EVENT_PATHS.has(target.pathname)) {
+      client.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n')
+      return
+    }
+    const upstream = connect(Number(this.config.upstreamOrigin.port), this.config.upstreamOrigin.hostname)
+    this.upgradedSockets.add(client)
+    this.upgradedSockets.add(upstream)
+    const cleanup = (): void => {
+      this.upgradedSockets.delete(client)
+      this.upgradedSockets.delete(upstream)
+    }
+    client.once('close', cleanup)
+    upstream.once('close', cleanup)
+    client.once('error', () => upstream.destroy())
+    upstream.once('error', () => {
+      if (!client.destroyed) client.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n')
+    })
+    upstream.once('connect', () => {
+      const headers = proxyRequestHeaders(request, this.config.upstreamOrigin, true)
+      upstream.write([
+        `${request.method ?? 'GET'} ${request.url ?? '/'} HTTP/1.1`,
+        ...serializeHeaders(headers),
+        '',
+        '',
+      ].join('\r\n'))
+      if (head.length > 0) upstream.write(head)
+      upstream.pipe(client)
+      client.pipe(upstream)
+      client.resume()
     })
   }
 }

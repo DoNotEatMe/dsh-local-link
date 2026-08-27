@@ -57,13 +57,16 @@ export async function apply(ctx: Context, config: PluginConfig): Promise<void> {
       }
       const url = new URL(request.url ?? '/', `http://${request.headers.host}`)
       try {
-        if (request.method === 'GET' && url.pathname === `${ADMIN_PREFIX}/status`) {
-          sendJson(response, 200, gateway.status())
+        if (request.method === 'GET' && url.pathname === `${ADMIN_PREFIX}/devices`) {
+          sendJson(response, 200, { devices: gateway.pairedDevices() })
           return
         }
         if (request.method === 'POST' && url.pathname === `${ADMIN_PREFIX}/pairing`) {
-          await readBody(request)
-          const pairing = gateway.issuePairing()
+          const body = await readBody(request)
+          if (body.sessionId !== undefined && (typeof body.sessionId !== 'string' || body.sessionId.length > 256)) {
+            throw new Error('bad_session_id')
+          }
+          const pairing = gateway.issuePairing(body.sessionId)
           const qrDataUrl = await QRCode.toDataURL(pairing.url, { margin: 1, width: 280, errorCorrectionLevel: 'M' })
           sendJson(response, 201, { ...pairing, qrDataUrl })
           return

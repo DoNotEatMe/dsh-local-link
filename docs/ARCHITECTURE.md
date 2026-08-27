@@ -9,7 +9,7 @@ The architecture follows five constraints:
 1. Keep the stock Harness listener loopback-only.
 2. Put the network boundary in a dedicated Host-side gateway.
 3. Use Cordis lifecycle and Harness slots instead of global DOM surgery.
-4. Make paired-device state explicit and revocable.
+4. Make automatic QR pairing and paired-device state explicit and revocable.
 5. Keep presentation text outside implementation code.
 
 ## Components
@@ -32,24 +32,38 @@ The gateway changes upstream `Host`, `Origin`, and fetch-site headers to the loo
 
 ### Client plugin
 
-`src/client.tsx` registers a normal `settings.section` entry. It does not occupy `sidebar.footer.action`, replace the root layout, inspect localized ARIA labels, or mutate generated CSS-module class names.
+`src/client.tsx` registers two normal Harness contributions: a compact desktop `sidebar.footer.action` that shows the local address and QR code, and a desktop-only `settings.section` that lists paired devices and revokes access. It does not replace the root layout, inspect localized ARIA labels, or mutate generated CSS-module class names.
 
 On an authenticated gateway page, the client contributes the trust hint required by the Harness client connection. The proxied index makes the Settings package depend on this contribution so configuration surfaces do not initialize against the unauthenticated page classification.
+
+Plain HTTP on a private IP is not a browser secure context, while the stock Harness RPC client calls `crypto.randomUUID()` during connection startup. The rewritten index therefore installs a small RFC 4122 v4 fallback backed by `crypto.getRandomValues()` before the stock boot manifest executes. This avoids certificate installation while keeping the LAN-only setup functional.
 
 ### Localization
 
 JSON dictionaries under `src/locales/` are registered with Harness `LocaleRuntime`. The slot declares its locale namespace and receives the framework translation function. The application locale remains the single source of truth.
 
+English and Chinese dictionaries intentionally contain the same key set. `tests/locales.test.ts` makes this a release invariant. Adding a language means adding one matching dictionary and registering that locale ID in `src/client.tsx`; component code remains unchanged.
+
+## Stable UI contract
+
+- Opening the sidebar panel issues a fresh one-time QR code; reopening is the refresh operation.
+- Pairing is automatic and opens the desktop-selected session.
+- The settings surface exists solely for device visibility and revocation.
+- Address, access mode, and retention remain configuration, not end-user controls.
+
+This boundary keeps connection setup in one place and persistent access management in one place without turning the plugin into a network-control dashboard.
+
 ## Request flows
 
 ### Pairing
 
-1. Desktop Settings requests a one-time token from the loopback administration route.
-2. The Host builds a LAN URL and renders it as a QR data URL.
-3. The phone opens a static pairing page. The secret remains in the URL fragment and is not sent in the initial HTTP request.
-4. The page POSTs the token and an optional device label.
+1. The desktop sidebar action reads Harness's current session selection and requests a one-time token from the loopback administration route.
+2. The Host builds a LAN URL containing the token and current session in the fragment, then renders it as a QR data URL. Neither value reaches the initial HTTP request.
+3. The phone opens a minimal automatic connection page. The secret remains in the URL fragment and is not sent in the initial HTTP request.
+4. The page immediately POSTs the token and a browser-derived device label; there is no confirmation form.
 5. The gateway consumes the token, stores a credential hash, and sets the browser cookie.
-6. The browser redirects to the stock Harness root.
+6. Before booting Harness, the page writes the selected session into Harness's own `dsh.sessions.current` persisted-selection cell for the LAN browser origin.
+7. The browser redirects to the complete stock Harness root. Harness loads the shared server-side session list and opens the transferred current conversation, whose ordinary WebSocket stream shows live agent activity.
 
 ### Normal request
 
@@ -68,8 +82,9 @@ The same network, Host, and credential checks run before the upgrade is passed t
 Runtime dependencies are intentionally limited:
 
 - `@deepseek-ai/schemastery`: Cordis-compatible configuration schema.
-- `http-proxy`: mature HTTP and WebSocket proxy transport.
 - `qrcode`: QR rendering for the desktop settings page.
+
+HTTP forwarding and the two Harness event WebSocket tunnels use Node's built-in `node:http` and `node:net` modules. No general-purpose proxy package is shipped.
 
 No service discovery, certificate generator, tunnel client, native application, analytics SDK, or extension runtime is included.
 

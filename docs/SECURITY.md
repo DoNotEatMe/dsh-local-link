@@ -3,7 +3,7 @@
 ## Intended deployment
 
 - Harness remains on `127.0.0.1:3080`.
-- Local Link listens on a private LAN interface through `0.0.0.0:3088`.
+- The local-access gateway listens on a private LAN interface through `0.0.0.0:3088`.
 - The operating-system firewall limits the listener to private networks.
 - The router does not forward the port to the internet.
 
@@ -32,7 +32,7 @@ The initial release does not encrypt LAN traffic. Pairing credentials and Harnes
 
 ### Existing WebSockets
 
-Revoking a device blocks subsequent requests and reconnects, but an already-upgraded WebSocket is not actively terminated yet. Restart Local Link to close every active connection immediately.
+Revoking a device blocks subsequent requests and reconnects, but an already-upgraded WebSocket is not actively terminated yet. Restart the Harness Web process to close every active connection immediately.
 
 ### Firewall automation
 
