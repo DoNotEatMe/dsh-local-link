@@ -1,0 +1,22 @@
+{
+  "nav": "Local Link",
+  "title": "Local mobile access",
+  "description": "Open this DeepSeek Harness instance from a phone on the same local network.",
+  "status.loading": "Loading gateway status…",
+  "status.running": "Listening on {address}",
+  "status.stopped": "Gateway is not running.",
+  "status.error": "Could not read gateway status.",
+  "status.desktopOnly": "Manage Local Link from the computer running DeepSeek Harness.",
+  "pair.create": "Create pairing QR",
+  "pair.creating": "Creating…",
+  "pair.expires": "This QR expires in {minutes} minutes and works once.",
+  "pair.open": "Open pairing link",
+  "devices.title": "Paired devices",
+  "devices.empty": "No paired devices yet.",
+  "devices.revoke": "Revoke",
+  "devices.revoking": "Revoking…",
+  "mode.pairing": "Pairing required",
+  "mode.trusted": "Trusted LAN (no device check)",
+  "security.http": "Traffic is currently unencrypted. Use only on a trusted private network.",
+  "refresh": "Refresh"
+}

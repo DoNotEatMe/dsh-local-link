@@ -1,0 +1,14 @@
+# Adds one Host gateway and one Web client settings page without replacing any
+# stock DeepSeek Harness module.
+- insert:
+    - id: dsh-local-link
+      name: dsh-local-link
+      inject: [webServer]
+      config:
+        listenHost: 0.0.0.0
+        listenPort: 3088
+        upstreamOrigin: http://127.0.0.1:3080
+        accessMode: pairing
+        pairingTtlSeconds: 300
+        deviceTtlDays: 90
+        stateFile: !!js dshHomePath('local-link/devices.json')

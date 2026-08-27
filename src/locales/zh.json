@@ -1,0 +1,22 @@
+{
+  "nav": "本地连接",
+  "title": "本地移动访问",
+  "description": "从同一局域网中的手机打开此 DeepSeek Harness 实例。",
+  "status.loading": "正在读取网关状态…",
+  "status.running": "正在监听 {address}",
+  "status.stopped": "网关未运行。",
+  "status.error": "无法读取网关状态。",
+  "status.desktopOnly": "请在运行 DeepSeek Harness 的电脑上管理本地连接。",
+  "pair.create": "创建配对二维码",
+  "pair.creating": "正在创建…",
+  "pair.expires": "此二维码将在 {minutes} 分钟后过期，且只能使用一次。",
+  "pair.open": "打开配对链接",
+  "devices.title": "已配对设备",
+  "devices.empty": "尚无已配对设备。",
+  "devices.revoke": "撤销",
+  "devices.revoking": "正在撤销…",
+  "mode.pairing": "需要配对",
+  "mode.trusted": "可信局域网（不检查设备）",
+  "security.http": "当前流量未加密。请仅在可信私有网络中使用。",
+  "refresh": "刷新"
+}

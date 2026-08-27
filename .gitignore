@@ -1,0 +1,8 @@
+node_modules/
+lib/
+coverage/
+*.tgz
+*.log
+.DS_Store
+devices.json
+.test-home/
