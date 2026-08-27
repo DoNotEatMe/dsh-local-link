@@ -2,6 +2,9 @@
   "name": "dsh-local-link",
   "version": "0.1.0",
   "description": "Lightweight, local-network mobile access for DeepSeek Harness.",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./lib/index.mjs",
   "types": "./lib/index.d.mts",
@@ -43,9 +46,10 @@
     "build": "tsdown",
     "clean": "node ./scripts/clean.mjs",
     "lint": "tsc --noEmit",
+    "prepack": "npm run build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run typecheck && npm run test && npm run build && npm pack --dry-run"
+    "verify": "npm run typecheck && npm run test && npm pack --dry-run"
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
@@ -53,6 +57,7 @@
   "keywords": [
     "deepseek-harness",
     "dsh",
+    "dsh-plugin",
     "cordis",
     "lan",
     "mobile",

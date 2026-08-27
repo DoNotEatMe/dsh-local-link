@@ -66,6 +66,31 @@ $harnessRoot = "C:\path\to\deepseek-harness"
 & "$harnessRoot\node_modules\.bin\dsh.CMD" web --profile web
 ```
 
+## Distribution
+
+The release artifact is a normal npm package. `prepack` builds `lib/` from a clean checkout, while the package allowlist ships only the runtime entry points, source map, type declarations, patch manifest, README, and license.
+
+```powershell
+npm install
+npm run verify
+npm pack
+```
+
+Supported installation sources are:
+
+```powershell
+# Published npm release — recommended for plugin managers
+dsh plugin --profile web add dsh-local-link
+
+# Local release archive
+dsh plugin --profile web add .\dsh-local-link-0.1.0.tgz
+
+# Development checkout
+dsh plugin --profile web add (Get-Location).Path
+```
+
+For community discovery, make the GitHub repository public and add the `dsh-plugin`, `deepseek-harness`, and `cordis-plugin` repository topics. Topic-driven marketplaces can then index the repository automatically; publishing the same version to npm gives them the smallest and most deterministic install path.
+
 ## Configuration
 
 The included `cordis.patch.yml` installs these defaults:
