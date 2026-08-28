@@ -11,4 +11,7 @@
         accessMode: pairing
         pairingTtlSeconds: 300
         deviceTtlDays: 90
+        diagnosticsEnabled: true
+        diagnosticsMaxEntries: 15
+        diagnosticsFile: !!js dshHomePath('local-link/diagnostics.json')
         stateFile: !!js dshHomePath('local-link/devices.json')

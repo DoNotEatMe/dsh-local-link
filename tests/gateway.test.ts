@@ -47,6 +47,9 @@ describe('LocalGateway', () => {
       accessMode: 'pairing',
       pairingTtlMs: 300_000,
       deviceTtlMs: 86_400_000,
+      diagnosticsEnabled: true,
+      diagnosticsMaxEntries: 200,
+      diagnosticsFile: join(root, 'diagnostics.json'),
       stateFile: join(root, 'devices.json'),
     }
     const gateway = new LocalGateway(config)
@@ -60,6 +63,7 @@ describe('LocalGateway', () => {
     expect(targetedHash.get('session')).toBe('session-123')
     expect(targetedHash.get('token')).toBeTruthy()
     const pairing = gateway.issuePairing()
+    expect(gateway.pairingStatus(pairing.id)).toBe('active')
     const token = new URL(pairing.url).hash.slice('#token='.length)
     const pairPage = await fetch(`${origin}/__dsh-local-link/pair`)
     expect(pairPage.status).toBe(200)
@@ -67,22 +71,28 @@ describe('LocalGateway', () => {
     const paired = await fetch(`${origin}/__dsh-local-link/pair`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token, label: 'Test phone' }),
+      body: JSON.stringify({ token, device: { type: 'Phone', browser: 'Chrome' } }),
     })
     expect(paired.status).toBe(204)
+    expect(gateway.pairingStatus(pairing.id)).toBe('consumed')
+    expect(gateway.diagnosticEvents()).toHaveLength(1)
+    expect(gateway.diagnosticEvents()[0]).toMatchObject({ level: 'warn', code: 'AUTH_REQUIRED' })
     const cookie = paired.headers.get('set-cookie')?.split(';', 1)[0]
     expect(cookie).toContain('dsh_local_link_device=')
     expect((await fetch(`${origin}/__dsh-local-link/pair`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }),
     })).status).toBe(410)
+    expect(gateway.diagnosticEvents()[0]).toMatchObject({ level: 'warn', code: 'PAIRING_REJECTED' })
 
     const repeatToken = new URL(gateway.issuePairing().url).hash.slice('#token='.length)
     expect((await fetch(`${origin}/__dsh-local-link/pair`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: cookie ?? '' },
-      body: JSON.stringify({ token: repeatToken, label: 'Same phone' }),
+      body: JSON.stringify({ token: repeatToken, device: { type: 'Phone', browser: 'Chrome' } }),
     })).status).toBe(204)
     expect(gateway.pairedDevices()).toHaveLength(1)
+    expect(gateway.pairedDevices()[0]).toMatchObject({ name: 'My device', deviceType: 'Phone', browser: 'Chrome' })
+    expect(await gateway.renameDevice(gateway.pairedDevices()[0]?.id ?? '', 'QA phone')).toMatchObject({ name: 'QA phone' })
 
     const response = await fetch(origin, {
       headers: {

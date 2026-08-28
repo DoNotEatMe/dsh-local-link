@@ -22,7 +22,14 @@ A connected Harness browser may read project data, submit prompts, approve actio
 - Device expiry and explicit revocation.
 - Authentication before HTTP proxying and WebSocket upgrade.
 - Gateway-side block for desktop administration paths.
-- No external relay or telemetry.
+- Bounded local diagnostics with an explicit context allowlist and no credentials, addresses, identifiers, names, paths, or user content.
+- No external relay, telemetry, analytics, or remote log collector.
+
+## Diagnostic data
+
+Diagnostics are enabled by default because a local networking plugin otherwise becomes difficult to support after publication. They remain on the Harness computer in `~/.dsh/local-link/diagnostics.json` unless configured otherwise. The default ring retains only the latest 15 failures; successful operations are not recorded. The desktop Settings page is the only UI/API surface for reading, copying, and clearing them.
+
+The report is designed to be safe to review and attach to a public bug report, but users should still inspect copied JSON before sharing it. Disabling `diagnosticsEnabled` prevents new events from being retained.
 
 ## Known limitations of the preview
 
@@ -33,6 +40,10 @@ The initial release does not encrypt LAN traffic. Pairing credentials and Harnes
 ### Existing WebSockets
 
 Revoking a device blocks subsequent requests and reconnects, but an already-upgraded WebSocket is not actively terminated yet. Restart the Harness Web process to close every active connection immediately.
+
+### Version-sensitive Harness integration
+
+Authenticated LAN boot, direct Settings navigation, and coexistence with the stock Cordis footer action currently need small compatibility adapters for Harness `0.1.1-rc.2`. They do not expand network authority, but a Harness upgrade can break presentation or fail closed. Before declaring another Harness version supported, manually retest pairing, live conversation streaming, Settings navigation, rename, revoke, and coexistence with Cordis.
 
 ### Firewall automation
 

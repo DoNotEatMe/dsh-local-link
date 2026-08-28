@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -14,10 +14,24 @@ describe('DeviceStore', () => {
     const file = join(root, 'devices.json')
     const store = new DeviceStore(file, 86_400_000)
     await store.load()
-    const created = await store.add('My phone')
-    expect(store.authorize(created.token)?.label).toBe('My phone')
+    const created = await store.add({ type: 'Phone', browser: 'Chrome' })
+    expect(store.authorize(created.token)).toMatchObject({ name: 'My device', deviceType: 'Phone', browser: 'Chrome' })
+    expect(await store.renameDevice(created.device.id, 'Kitchen phone')).toMatchObject({ name: 'Kitchen phone' })
     expect(await readFile(file, 'utf8')).not.toContain(created.token)
     expect(await store.revoke(created.device.id)).toBe(true)
     expect(store.authorize(created.token)).toBeUndefined()
+  })
+
+  it('migrates legacy platform labels into the new display model', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-local-link-'))
+    roots.push(root)
+    const file = join(root, 'devices.json')
+    const now = new Date().toISOString()
+    await writeFile(file, JSON.stringify({ version: 1, devices: [{
+      id: 'legacy', label: 'Linux armv81', tokenHash: '00', createdAt: now, lastSeenAt: now,
+    }] }))
+    const store = new DeviceStore(file, 86_400_000)
+    await store.load()
+    expect(store.list()).toEqual([{ id: 'legacy', name: 'My device', deviceType: 'Phone', browser: 'Browser', createdAt: now, lastSeenAt: now }])
   })
 })

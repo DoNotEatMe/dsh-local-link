@@ -1,7 +1,7 @@
 {
   "name": "dsh-local-link",
   "version": "0.1.0",
-  "description": "Lightweight, local-network mobile access for DeepSeek Harness.",
+  "description": "DeepSeek Harness plugin for lightweight LAN access to the current Web UI from phones, tablets, and other computers.",
   "publishConfig": {
     "access": "public"
   },
@@ -24,6 +24,12 @@
     "lib/client.js",
     "lib/client.js.map",
     "cordis.patch.yml",
+    "docs/images/*.jpg",
+    "docs/ARCHITECTURE.md",
+    "docs/DIAGNOSTICS.md",
+    "docs/SECURITY.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
     "README.md",
     "LICENSE"
   ],
@@ -45,8 +51,8 @@
   "scripts": {
     "build": "tsdown",
     "clean": "node ./scripts/clean.mjs",
-    "lint": "tsc --noEmit",
     "prepack": "npm run build",
+    "release:check": "npm run verify && pnpm audit --prod && npm publish --dry-run",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm run test && npm pack --dry-run"
@@ -55,13 +61,20 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "keywords": [
+    "deepseek",
     "deepseek-harness",
+    "harness",
     "dsh",
     "dsh-plugin",
+    "plugin",
     "cordis",
+    "local-network",
     "lan",
     "mobile",
-    "wifi"
+    "wifi",
+    "remote-access",
+    "web-ui",
+    "qr-code"
   ],
   "license": "MIT",
   "author": "DoNotEatMe",

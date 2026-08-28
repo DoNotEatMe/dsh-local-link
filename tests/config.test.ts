@@ -9,6 +9,9 @@ describe('parseConfig', () => {
     expect(config.listenPort).toBe(3088)
     expect(config.upstreamOrigin.origin).toBe('http://127.0.0.1:3080')
     expect(config.accessMode).toBe('pairing')
+    expect(config.diagnosticsEnabled).toBe(true)
+    expect(config.diagnosticsMaxEntries).toBe(15)
+    expect(config.diagnosticsFile).toBe(join(process.cwd(), 'diagnostics.json'))
   })
 
   it('rejects a non-loopback upstream', () => {
@@ -20,5 +23,19 @@ describe('parseConfig', () => {
 
   it('rejects relative state paths', () => {
     expect(() => parseConfig({ stateFile: 'devices.json' })).toThrow(/absolute/u)
+  })
+
+  it('rejects a relative diagnostics path', () => {
+    expect(() => parseConfig({
+      stateFile: join(process.cwd(), 'devices.json'),
+      diagnosticsFile: 'diagnostics.json',
+    })).toThrow(/diagnosticsFile/u)
+  })
+
+  it('keeps diagnostics retention intentionally small', () => {
+    const stateFile = join(process.cwd(), 'devices.json')
+    expect(() => parseConfig({ stateFile, diagnosticsMaxEntries: 4 })).toThrow(/5 through 200/u)
+    expect(() => parseConfig({ stateFile, diagnosticsMaxEntries: 201 })).toThrow(/5 through 200/u)
+    expect(parseConfig({ stateFile, diagnosticsMaxEntries: 5 }).diagnosticsMaxEntries).toBe(5)
   })
 })

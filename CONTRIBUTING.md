@@ -1,12 +1,28 @@
 # Contributing
 
-Contributions are welcome when they preserve the project's narrow local-access scope.
+Contributions are welcome when they preserve the project's narrow local-access scope and security boundary.
+
+## Set up
+
+```powershell
+git clone https://github.com/DoNotEatMe/dsh-local-link.git
+Set-Location dsh-local-link
+corepack pnpm install --frozen-lockfile
+npm run verify
+```
+
+## Pull requests
 
 Before opening a pull request:
 
-1. Keep user-facing text in matching JSON locale dictionaries.
+1. Keep user-visible copy in matching `src/locales/*.json` dictionaries.
 2. Add tests for security-sensitive and version-sensitive behavior.
-3. Run `npm run verify`.
-4. Explain any new runtime dependency and why the standard library is insufficient.
+3. Explain every new runtime dependency and why Node or Harness cannot provide the capability.
+4. Update architecture, security, or roadmap documentation when a boundary changes.
+5. Run `npm run verify` and report any browser acceptance that could not be performed.
+6. Keep machine paths, device state, credentials, transcripts, and generated caches out of commits.
+7. When adding a diagnostic event, keep it failure-only, use a stable code, update `docs/DIAGNOSTICS.md`, and extend the privacy or retention tests.
 
-Please discuss remote access, native applications, tunnel integrations, or large UI replacements before implementation; they are intentionally outside the initial architecture.
+Remote relays, public tunnels, native applications, device fingerprinting, telemetry, and replacement chat interfaces are outside the project scope unless that boundary is explicitly reconsidered first.
+
+AI-assisted contributions are welcome. Disclose material agent assistance in the pull request, review the resulting code, and take responsibility for its behavior, licensing, tests, and security just as for any other contribution.

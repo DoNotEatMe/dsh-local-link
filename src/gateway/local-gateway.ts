@@ -9,8 +9,9 @@ import {
 } from 'node:http'
 import { connect, type Socket } from 'node:net'
 import { DeviceStore, type DeviceView } from '../auth/device-store.js'
-import { PairingTokens } from '../auth/pairing.js'
+import { PairingTokens, type PairingStatus } from '../auth/pairing.js'
 import type { ResolvedConfig } from '../config.js'
+import { DiagnosticStore, type DiagnosticCode, type DiagnosticEvent } from '../diagnostics.js'
 import { allowedGatewayHost, isPrivateAddress, privateInterfaceAddresses } from '../network.js'
 import { rewriteAuthenticatedIndex } from './html.js'
 import { PAIR_PAGE, PAIR_PATH } from './pair-page.js'
@@ -92,9 +93,18 @@ function serializeHeaders(headers: OutgoingHttpHeaders): string[] {
   return lines
 }
 
+function requestKind(pathname: string): string {
+  if (pathname === '/') return 'root'
+  if (EVENT_PATHS.has(pathname)) return 'events'
+  if (pathname.startsWith('/api/')) return 'api'
+  if (/\.[a-z0-9]{1,8}$/iu.test(pathname)) return 'asset'
+  return 'page'
+}
+
 export class LocalGateway {
   private readonly devices: DeviceStore
   private readonly pairing: PairingTokens
+  private readonly diagnostics: DiagnosticStore
   private readonly upgradedSockets = new Set<Socket>()
   private server: Server | undefined
   private addresses: string[] = []
@@ -102,20 +112,17 @@ export class LocalGateway {
   constructor(readonly config: ResolvedConfig) {
     this.devices = new DeviceStore(config.stateFile, config.deviceTtlMs)
     this.pairing = new PairingTokens(config.pairingTtlMs)
+    this.diagnostics = new DiagnosticStore(config.diagnosticsFile, config.diagnosticsMaxEntries, config.diagnosticsEnabled)
   }
 
   async start(): Promise<void> {
     if (this.server !== undefined) return
-    await this.devices.load()
+    await Promise.all([this.devices.load(), this.diagnostics.load()])
     this.addresses = this.config.listenHost === '0.0.0.0' ? privateInterfaceAddresses() : [this.config.listenHost]
     if (this.addresses.length === 0) throw new Error('no private IPv4 interface is available')
 
     const server = createServer((request, response) => { void this.handle(request, response) })
     server.on('upgrade', (request, socket, head) => {
-      if (!this.requestTrusted(request) || !this.authorized(request)) {
-        socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
-        return
-      }
       void this.proxyWebSocket(request, socket as Socket, head)
     })
     await new Promise<void>((resolve, reject) => {
@@ -132,18 +139,40 @@ export class LocalGateway {
     return this.devices.list()
   }
 
-  issuePairing(sessionId?: string): { readonly url: string; readonly expiresAt: string } {
+  issuePairing(sessionId?: string): { readonly id: string; readonly url: string; readonly expiresAt: string } {
     const address = this.addresses[0]
     if (address === undefined) throw new Error('gateway is not running')
     const issued = this.pairing.issue()
     return {
+      id: issued.id,
       url: `http://${address}:${this.config.listenPort}${PAIR_PATH}#token=${encodeURIComponent(issued.token)}${sessionId === undefined ? '' : `&session=${encodeURIComponent(sessionId)}`}`,
       expiresAt: issued.expiresAt,
     }
   }
 
-  revoke(id: string): Promise<boolean> {
+  pairingStatus(id: unknown): PairingStatus {
+    return this.pairing.getStatus(id)
+  }
+
+  diagnosticEvents(): readonly DiagnosticEvent[] {
+    return this.diagnostics.list()
+  }
+
+  clearDiagnostics(): Promise<void> {
+    return this.diagnostics.clear()
+  }
+
+  recordActionError(code: Extract<DiagnosticCode,
+    'PAIRING_GENERATION_FAILED' | 'CLIPBOARD_COPY_FAILED' | 'DEVICE_REVOKE_FAILED' | 'DEVICE_RENAME_FAILED'>): void {
+    void this.diagnostics.record('error', code)
+  }
+
+  async revoke(id: string): Promise<boolean> {
     return this.devices.revoke(id)
+  }
+
+  async renameDevice(id: string, name: unknown): Promise<DeviceView | undefined> {
+    return this.devices.renameDevice(id, name)
   }
 
   async close(): Promise<void> {
@@ -167,6 +196,7 @@ export class LocalGateway {
 
   private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     if (!this.requestTrusted(request)) {
+      void this.diagnostics.record('warn', 'REQUEST_REJECTED', { reason: 'untrusted_source' })
       send(response, 403, 'Local-network request rejected')
       return
     }
@@ -183,21 +213,31 @@ export class LocalGateway {
       try {
         const body = await readJson(request)
         if (!this.pairing.consume(body.token)) {
+          void this.diagnostics.record('warn', 'PAIRING_REJECTED', { reason: 'expired_or_used' })
           send(response, 410, 'Pairing token expired or already used')
           return
         }
         const credential = cookieValue(request, COOKIE_NAME)
-        if (this.devices.authorize(credential) === undefined) {
-          const created = await this.devices.add(body.label)
+        const existing = this.devices.authorize(credential)
+        if (existing === undefined) {
+          const created = await this.devices.add(body.device)
           response.setHeader('set-cookie', `${COOKIE_NAME}=${encodeURIComponent(created.token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(this.config.deviceTtlMs / 1000)}`)
         }
         send(response, 204, '')
       } catch {
+        void this.diagnostics.record('warn', 'PAIRING_INVALID', { reason: 'invalid_request' })
         send(response, 400, 'Invalid pairing request')
       }
       return
     }
     if (!this.authorized(request)) {
+      const kind = requestKind(url.pathname)
+      if (kind === 'root' || kind === 'page') {
+        void this.diagnostics.record('warn', 'AUTH_REQUIRED', {
+          method: request.method ?? 'UNKNOWN',
+          requestKind: kind,
+        })
+      }
       send(response, 401, 'This browser is not paired. Open Local access in the computer sidebar and scan its QR code.')
       return
     }
@@ -233,12 +273,14 @@ export class LocalGateway {
           response.writeHead(upstreamResponse.statusCode ?? 502, outgoing)
           response.end(body)
         } catch (error) {
+          void this.diagnostics.record('error', 'INDEX_REWRITE_ERROR', { reason: 'rewrite_failed' })
           if (!response.headersSent) send(response, 502, error instanceof Error ? error.message : 'index rewrite failed')
           else response.destroy()
         }
       })
     })
     upstreamRequest.once('error', () => {
+      void this.diagnostics.record('error', 'HTTP_UPSTREAM_ERROR', { requestKind: requestKind(new URL(request.url ?? '/', this.config.upstreamOrigin).pathname) })
       if (!response.headersSent) send(response, 502, 'DeepSeek Harness is unavailable')
       else response.destroy()
     })
@@ -246,8 +288,16 @@ export class LocalGateway {
   }
 
   private async proxyWebSocket(request: IncomingMessage, client: Socket, head: Buffer): Promise<void> {
+    const trusted = this.requestTrusted(request)
+    const authorized = trusted && this.authorized(request)
+    if (!trusted || !authorized) {
+      void this.diagnostics.record('warn', 'WS_REJECTED', { reason: trusted ? 'unauthorized' : 'untrusted_source' })
+      client.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
+      return
+    }
     const target = new URL(request.url ?? '/', this.config.upstreamOrigin)
     if (target.search !== '' || !EVENT_PATHS.has(target.pathname)) {
+      void this.diagnostics.record('warn', 'WS_REJECTED', { reason: 'unsupported_path' })
       client.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n')
       return
     }
@@ -262,6 +312,7 @@ export class LocalGateway {
     upstream.once('close', cleanup)
     client.once('error', () => upstream.destroy())
     upstream.once('error', () => {
+      void this.diagnostics.record('error', 'WS_UPSTREAM_ERROR', { reason: 'connect_failed' })
       if (!client.destroyed) client.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n')
     })
     upstream.once('connect', () => {

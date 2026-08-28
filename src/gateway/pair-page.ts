@@ -16,14 +16,24 @@ export const PAIR_PAGE = `<!doctype html>
   <output id="status"></output>
 </main>
 <script>
-  const status=document.getElementById('status');const params=new URLSearchParams(location.hash.slice(1));
-  const token=params.get('token');const sessionId=params.get('session');history.replaceState(null,'',location.pathname);
-  const label=navigator.userAgentData?.platform||navigator.platform||'Mobile browser';
-  void (async()=>{try{if(!token)throw new Error('This connection link is incomplete.');
-    const response=await fetch(location.pathname,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token,label})});
-    if(!response.ok)throw new Error(response.status===410?'This QR code expired or was already used.':'Could not connect this device.');
-    if(sessionId)localStorage.setItem('dsh.sessions.current',JSON.stringify({sessionId}));
+  const status=document.getElementById('status');
+  const stop=(message)=>{document.querySelector('.spinner')?.remove();status.textContent=message;};
+  void (async()=>{try{
+    const params=new URLSearchParams(location.hash.slice(1));const token=params.get('token');const sessionId=params.get('session');
+    if(!token)throw new Error('This connection link is incomplete.');
+    try{history.replaceState(null,'',location.pathname);}catch{}
+    const ua=navigator.userAgent;const mobile=navigator.userAgentData?.mobile===true;
+    const type=/iPad|Tablet/i.test(ua)||(/Android/i.test(ua)&&!/Mobile/i.test(ua))?'Tablet':mobile||/iPhone|iPod|Android|Mobile/i.test(ua)?'Phone':'Computer';
+    const browser=/EdgA?|EdgiOS|Edg/i.test(ua)?'Edge':/CriOS|Chrome/i.test(ua)?'Chrome':/FxiOS|Firefox/i.test(ua)?'Firefox':/Safari/i.test(ua)?'Safari':'Browser';
+    await new Promise((resolve,reject)=>{
+      const request=new XMLHttpRequest();request.open('POST',location.pathname);request.timeout=12000;request.setRequestHeader('content-type','application/json');
+      request.onload=()=>request.status===204?resolve():reject(new Error(request.status===410?'This QR code expired or was already used.':'Could not connect this device.'));
+      request.onerror=()=>reject(new Error('Could not reach this computer. Check the local network and try again.'));
+      request.ontimeout=()=>reject(new Error('Connection timed out. Generate a new code and try again.'));
+      request.send(JSON.stringify({token,device:{type,browser}}));
+    });
+    if(sessionId)try{localStorage.setItem('dsh.sessions.current',JSON.stringify({sessionId}));}catch{}
     location.replace('/');
-  }catch(error){document.querySelector('.spinner')?.remove();status.value=error instanceof Error?error.message:'Could not connect this device.';}})();
+  }catch(error){stop(error instanceof Error?error.message:'Could not connect this device.');}})();
 </script>
 </html>`

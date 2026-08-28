@@ -9,6 +9,7 @@ export const inject = ['webServer']
 export { Config }
 
 const ADMIN_PREFIX = '/__dsh-local-link/admin'
+const CLIENT_DIAGNOSTIC_CODES = new Set(['CLIPBOARD_COPY_FAILED', 'DEVICE_REVOKE_FAILED', 'DEVICE_RENAME_FAILED'])
 
 function sendJson(response: Parameters<WebRoute['handler']>[1], status: number, value: unknown): void {
   const body = JSON.stringify(value)
@@ -61,6 +62,26 @@ export async function apply(ctx: Context, config: PluginConfig): Promise<void> {
           sendJson(response, 200, { devices: gateway.pairedDevices() })
           return
         }
+        if (request.method === 'GET' && url.pathname === `${ADMIN_PREFIX}/diagnostics`) {
+          sendJson(response, 200, {
+            version: 1,
+            events: gateway.diagnosticEvents(),
+            privacy: 'No tokens, cookies, IP addresses, device IDs, session IDs, device names, or request paths.',
+          })
+          return
+        }
+        if (request.method === 'POST' && url.pathname === `${ADMIN_PREFIX}/diagnostics/clear`) {
+          await gateway.clearDiagnostics()
+          sendJson(response, 200, { cleared: true })
+          return
+        }
+        if (request.method === 'POST' && url.pathname === `${ADMIN_PREFIX}/diagnostics/event`) {
+          const body = await readBody(request)
+          if (typeof body.code !== 'string' || !CLIENT_DIAGNOSTIC_CODES.has(body.code)) throw new Error('bad_diagnostic_code')
+          gateway.recordActionError(body.code as 'CLIPBOARD_COPY_FAILED' | 'DEVICE_REVOKE_FAILED' | 'DEVICE_RENAME_FAILED')
+          sendJson(response, 202, { recorded: true })
+          return
+        }
         if (request.method === 'POST' && url.pathname === `${ADMIN_PREFIX}/pairing`) {
           const body = await readBody(request)
           if (body.sessionId !== undefined && (typeof body.sessionId !== 'string' || body.sessionId.length > 256)) {
@@ -71,14 +92,32 @@ export async function apply(ctx: Context, config: PluginConfig): Promise<void> {
           sendJson(response, 201, { ...pairing, qrDataUrl })
           return
         }
+        if (request.method === 'GET' && url.pathname === `${ADMIN_PREFIX}/pairing/status`) {
+          sendJson(response, 200, { status: gateway.pairingStatus(url.searchParams.get('id')) })
+          return
+        }
         if (request.method === 'POST' && url.pathname === `${ADMIN_PREFIX}/revoke`) {
           const body = await readBody(request)
           if (typeof body.id !== 'string') throw new Error('bad_device_id')
           sendJson(response, 200, { revoked: await gateway.revoke(body.id) })
           return
         }
+        if (request.method === 'POST' && url.pathname === `${ADMIN_PREFIX}/rename`) {
+          const body = await readBody(request)
+          if (typeof body.id !== 'string') throw new Error('bad_device_id')
+          const device = await gateway.renameDevice(body.id, body.name)
+          if (device === undefined) {
+            sendJson(response, 404, { error: 'device_not_found' })
+            return
+          }
+          sendJson(response, 200, { device })
+          return
+        }
         sendJson(response, 404, { error: 'not_found' })
       } catch (error) {
+        if (url.pathname === `${ADMIN_PREFIX}/pairing`) gateway.recordActionError('PAIRING_GENERATION_FAILED')
+        else if (url.pathname === `${ADMIN_PREFIX}/revoke`) gateway.recordActionError('DEVICE_REVOKE_FAILED')
+        else if (url.pathname === `${ADMIN_PREFIX}/rename`) gateway.recordActionError('DEVICE_RENAME_FAILED')
         sendJson(response, 400, { error: error instanceof Error ? error.message : 'bad_request' })
       }
     },

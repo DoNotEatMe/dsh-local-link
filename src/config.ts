@@ -1,4 +1,4 @@
-import { isAbsolute, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { isIP } from 'node:net'
 import z from '@deepseek-ai/schemastery'
 
@@ -11,6 +11,9 @@ export interface PluginConfig {
   accessMode?: AccessMode
   pairingTtlSeconds?: number
   deviceTtlDays?: number
+  diagnosticsEnabled?: boolean
+  diagnosticsMaxEntries?: number
+  diagnosticsFile?: string
   stateFile: string
 }
 
@@ -21,6 +24,9 @@ export interface ResolvedConfig {
   readonly accessMode: AccessMode
   readonly pairingTtlMs: number
   readonly deviceTtlMs: number
+  readonly diagnosticsEnabled: boolean
+  readonly diagnosticsMaxEntries: number
+  readonly diagnosticsFile: string
   readonly stateFile: string
 }
 
@@ -31,6 +37,9 @@ export const Config: z<PluginConfig> = z.object({
   accessMode: z.union([z.const('pairing'), z.const('trusted-lan')]).default('pairing'),
   pairingTtlSeconds: z.natural().default(300),
   deviceTtlDays: z.natural().default(90),
+  diagnosticsEnabled: z.boolean().default(true),
+  diagnosticsMaxEntries: z.natural().max(200).default(15),
+  diagnosticsFile: z.string(),
   stateFile: z.string().required(),
 })
 
@@ -54,9 +63,13 @@ export function parseConfig(value: PluginConfig): ResolvedConfig {
   }
 
   if (!isAbsolute(value.stateFile)) throw new Error('stateFile must be an absolute path')
+  if (value.diagnosticsFile !== undefined && !isAbsolute(value.diagnosticsFile)) {
+    throw new Error('diagnosticsFile must be an absolute path')
+  }
   const accessMode = value.accessMode ?? 'pairing'
   if (accessMode !== 'pairing' && accessMode !== 'trusted-lan') throw new Error('accessMode is not supported')
 
+  const stateFile = resolve(value.stateFile)
   return Object.freeze({
     listenHost,
     listenPort: boundedInteger(value.listenPort, 'listenPort', 3088, 1, 65535),
@@ -64,6 +77,9 @@ export function parseConfig(value: PluginConfig): ResolvedConfig {
     accessMode,
     pairingTtlMs: boundedInteger(value.pairingTtlSeconds, 'pairingTtlSeconds', 300, 30, 3600) * 1000,
     deviceTtlMs: boundedInteger(value.deviceTtlDays, 'deviceTtlDays', 90, 1, 3650) * 86_400_000,
-    stateFile: resolve(value.stateFile),
+    diagnosticsEnabled: value.diagnosticsEnabled ?? true,
+    diagnosticsMaxEntries: boundedInteger(value.diagnosticsMaxEntries, 'diagnosticsMaxEntries', 15, 5, 200),
+    diagnosticsFile: resolve(value.diagnosticsFile ?? join(dirname(stateFile), 'diagnostics.json')),
+    stateFile,
   })
 }
