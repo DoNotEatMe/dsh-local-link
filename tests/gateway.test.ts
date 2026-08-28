@@ -29,6 +29,12 @@ describe('LocalGateway', () => {
     const boot = { rev: 'test', entries: [
       { id: 'dsh-local-link', inject: [] },
       { id: '@deepseek-ai/dsh-client-ui-settings', inject: ['connection'] },
+      {
+        id: '@deepseek-ai/dsh-client-ui-layout',
+        url: '/plugins/layout.js',
+        rev: 'stock-layout',
+        inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-theme'],
+      },
     ] }
     let observedHeaders: IncomingHttpHeaders | undefined
     const upstream = createServer((request, response) => {
@@ -110,5 +116,27 @@ describe('LocalGateway', () => {
     expect(observedHeaders?.referer).toBe(`http://127.0.0.1:${upstreamPort}/`)
     expect(observedHeaders?.['sec-fetch-site']).toBe('same-origin')
     expect(observedHeaders?.cookie).toBeUndefined()
+
+    const mobileResponse = await fetch(origin, {
+      headers: {
+        cookie: cookie ?? '',
+        'user-agent': 'Mozilla/5.0 (Linux; Android 14) Chrome/128 Mobile',
+      },
+    })
+    const mobileHtml = await mobileResponse.text()
+    expect(mobileResponse.status).toBe(200)
+    expect(mobileHtml).toContain('window.__DSH_LOCAL_LINK_MOBILE__=true')
+    expect(mobileHtml).toContain('"url":"/__dsh-local-link/mobile-layout.js"')
+
+    const desktopResponse = await fetch(`${origin}/?view=desktop`, {
+      headers: {
+        cookie: cookie ?? '',
+        'user-agent': 'Mozilla/5.0 (Linux; Android 14) Chrome/128 Mobile',
+      },
+    })
+    const desktopHtml = await desktopResponse.text()
+    expect(desktopResponse.status).toBe(200)
+    expect(desktopHtml).not.toContain('window.__DSH_LOCAL_LINK_MOBILE__=true')
+    expect(desktopHtml).toContain('"url":"/plugins/layout.js"')
   })
 })

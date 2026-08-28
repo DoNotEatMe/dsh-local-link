@@ -4,7 +4,7 @@ import { rewriteAuthenticatedIndex } from '../src/gateway/html.js'
 import { PAIR_PAGE } from '../src/gateway/pair-page.js'
 
 function index(entries: unknown[]): string {
-  return `<html><script>window.__DSH_BOOT__ = ${JSON.stringify({ rev: 'test', entries })};</script></html>`
+  return `<html><head><script>window.__DSH_BOOT__ = ${JSON.stringify({ rev: 'test', entries })};</script></head></html>`
 }
 
 describe('rewriteAuthenticatedIndex', () => {
@@ -27,6 +27,34 @@ describe('rewriteAuthenticatedIndex', () => {
 
   it('leaves unrelated HTML untouched', () => {
     expect(rewriteAuthenticatedIndex('<html>plain</html>')).toBe('<html>plain</html>')
+  })
+
+  it('replaces only the root layout bundle for a mobile surface', () => {
+    const result = rewriteAuthenticatedIndex(index([
+      { id: 'dsh-local-link', url: '/plugins/local-link.js', rev: 'local-link', inject: [] },
+      { id: '@deepseek-ai/dsh-client-ui-settings', url: '/plugins/settings.js', rev: 'settings', inject: ['connection'] },
+      {
+        id: '@deepseek-ai/dsh-client-ui-layout',
+        url: '/plugins/layout.js',
+        rev: 'stock-layout',
+        inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-theme'],
+      },
+      { id: 'third-party-view', url: '/plugins/view.js', rev: 'view', inject: ['@deepseek-ai/dsh-client-ui-conversation'] },
+    ]), { mobile: true })
+    expect(result).toContain('window.__DSH_LOCAL_LINK_MOBILE__=true')
+    expect(result).toContain('viewport-fit=cover')
+    expect(result).toContain('"url":"/__dsh-local-link/mobile-layout.js"')
+    expect(result).toContain('"rev":"dsh-local-link-mobile-layout-v1"')
+    expect(result).toContain('"inject":["@deepseek-ai/dsh-client-runtime","@deepseek-ai/dsh-client-ui-theme","dsh-local-link"]')
+    expect(result).toContain('"id":"third-party-view","url":"/plugins/view.js","rev":"view"')
+  })
+
+  it('fails closed when the mobile layout contract is incompatible', () => {
+    expect(() => rewriteAuthenticatedIndex(index([
+      { id: 'dsh-local-link', inject: [] },
+      { id: '@deepseek-ai/dsh-client-ui-settings', inject: ['connection'] },
+      { id: '@deepseek-ai/dsh-client-ui-layout', url: '/layout.js', rev: 'layout', inject: [] },
+    ]), { mobile: true })).toThrow(/layout boot entry is incompatible/u)
   })
 })
 

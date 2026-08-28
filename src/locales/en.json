@@ -1,6 +1,10 @@
 {
   "nav": "Local access",
   "footer.trigger": "Local access",
+  "mobile.closeOverlay": "Close panel",
+  "mobile.openNavigation": "Open navigation",
+  "mobile.navigation": "Workspaces and sessions",
+  "mobile.details": "Session details",
   "connect.title": "Open on another device",
   "connect.pairedDevices": "Paired devices",
   "connect.description": "Scan the QR code or copy the one-time link. The device must be on the same local network.",

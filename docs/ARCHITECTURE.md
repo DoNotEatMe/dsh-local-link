@@ -51,6 +51,14 @@ On an authenticated gateway page, the client contributes the trust hint required
 
 Plain HTTP on a private IP is not a browser secure context, while the stock Harness RPC client calls `crypto.randomUUID()` during connection startup. The rewritten index therefore installs a small RFC 4122 v4 fallback backed by `crypto.getRandomValues()` before the stock boot manifest executes. This avoids certificate installation while keeping the LAN-only setup functional.
 
+### Mobile root layout
+
+`src/mobile-layout.tsx` is selected by the gateway for phone and tablet user agents, with explicit `?view=mobile` and `?view=desktop` overrides for testing and recovery. The gateway changes only the official root-layout boot entry and leaves every other boot registration intact.
+
+The compact shell owns four root surfaces: `sidebar`, `conversation`, `details`, and `shell.overlay`. It deliberately does not enumerate chat, trajectory, composer, dock, node, or third-party view registrations. Those remain children of the stock conversation surface and continue to resolve from their dynamic Harness slots. The layout therefore adapts navigation and panels without defining a second mobile application or duplicating conversation state.
+
+The mobile shell provides the normal `layout` controller contract, renders the sidebar and details as dismissible drawers, preserves overlay contributions, applies safe-area insets, and keeps dynamic tab lists horizontally scrollable. The stock desktop layout remains the default for non-mobile clients and the immediate fallback through `?view=desktop`.
+
 ### Localization
 
 JSON dictionaries under `src/locales/` are registered with Harness `LocaleRuntime`. The slot declares its locale namespace and receives the framework translation function. The application locale remains the single source of truth.
@@ -118,6 +126,7 @@ The plugin targets DeepSeek Harness `0.1.1-rc.2`. Most integration uses declared
 | Adapter | Why it exists | Failure behavior | Removal condition |
 | --- | --- | --- | --- |
 | Boot-manifest dependency adjustment | Authenticated non-loopback pages must load the Local Link trust hint before Settings initializes. | Fails closed when the expected plugin or Settings entry is absent. | Harness exposes a supported authenticated-gateway boot contract. |
+| Mobile root-layout substitution | Harness has no usable compact shell in the supported release, while its conversation contents are already slot-driven. | Fails closed if the unique official layout entry or required dependencies are absent; `?view=desktop` keeps the stock shell. | Harness ships a supported responsive root layout. |
 | Settings navigation bridge | The shell keeps `openSection` private outside onboarding. | The shortcut does nothing; ordinary `Settings → Local access` remains available. | Harness exposes general settings navigation. |
 | Footer stack rule | Cordis reserves a full-width cell inside a horizontal list container. | Without it, Local access has zero width while Cordis is mounted. | Harness stacks full-width footer actions or gives entries an explicit layout contract. |
 
@@ -130,6 +139,7 @@ The manifest transformation has direct tests. The two presentation adapters are 
 - **Browser metadata:** category and browser are coarse display hints supplied during pairing, not trusted identity. Laptop versus desktop is intentionally reported as `Computer`.
 - **Interface selection:** the first private IPv4 address is used in invitations. Multi-interface selection is not exposed yet.
 - **Harness upgrades:** boot graph names, shell semantics, or client connection assumptions may change even when TypeScript package contracts still compile.
+- **Mobile acceptance:** the compact shell preserves dynamic slots by construction, but virtual keyboards, orientation changes, and third-party conversation views still require real-device checks.
 - **Process lifecycle:** Host-side updates require a Harness restart. Client artifacts may be read from disk on reload, which can temporarily create a mixed-version UI; compatibility normalization prevents old device records from rendering blank.
 
 These are documented constraints, not hidden fallback modes. Release readiness requires the automated gate plus a real browser check of pairing, live conversation streaming, Cordis coexistence, settings navigation, rename, and revoke.

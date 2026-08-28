@@ -49,6 +49,8 @@ The profile points at the checkout, so rebuild after changing client code and re
 
 The invitation is one-use, expires after five minutes by default, and is replaced immediately when `Generate another code` is selected.
 
+Phone and tablet browsers automatically receive the experimental compact layout. It changes only the outer navigation, details drawer, and safe-area handling; conversations, trajectory views, composer extensions, and third-party tabs still render through Harness's normal plugin slots. Add `?view=desktop` to the gateway URL to return to the stock layout, or `?view=mobile` to preview the compact layout in a desktop browser.
+
 <p align="center">
   <img src="docs/images/local-access-qr.jpg" width="960" alt="DeepSeek Harness with the Local access QR panel, one-time link, and Paired devices shortcut">
 </p>
@@ -80,6 +82,7 @@ Expand `Diagnostics` on the same Settings page to inspect the most recent local 
 - **Two runtime dependencies:** configuration schema support and QR generation.
 - **No fingerprinting:** access is a random per-browser credential, not a device identity guess.
 - **Native extension points:** sidebar and Settings content use Harness slots and locale services.
+- **Slot-preserving mobile layout:** only the root shell is adapted; registered conversation views and overlays remain dynamic.
 - **JSON localization:** all visible plugin copy lives in matching locale dictionaries.
 - **Local diagnostics:** a bounded, redacted event history helps debug installs without analytics or an external collector.
 
@@ -170,6 +173,7 @@ Project documentation:
 - The shortcut that opens a specific Settings section uses a small semantic compatibility bridge because Harness `0.1.1-rc.2` exposes `openSection` only to onboarding.
 - Harness's footer-action container needs a compatibility layout rule when the full-width Cordis action is present.
 - Compatibility is currently pinned to DeepSeek Harness `0.1.1-rc.2` and must be retested for each supported Harness release.
+- The compact mobile layout is an early local-test surface and still needs real-device acceptance for third-party conversation tabs, virtual keyboards, and orientation changes.
 
 ## Development disclosure
 

@@ -1,6 +1,10 @@
 {
   "nav": "本地访问",
   "footer.trigger": "本地访问",
+  "mobile.closeOverlay": "关闭面板",
+  "mobile.openNavigation": "打开导航",
+  "mobile.navigation": "工作区与会话",
+  "mobile.details": "会话详情",
   "connect.title": "在其他设备上打开",
   "connect.pairedDevices": "已配对设备",
   "connect.description": "扫描二维码或复制一次性链接。设备必须连接到同一个本地网络。",

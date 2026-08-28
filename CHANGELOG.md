@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+### Added
+
+- Experimental phone/tablet root layout with drawer navigation, details sheet, safe-area support, and explicit `?view=mobile` / `?view=desktop` overrides.
+- Slot-preserving mobile boot substitution: conversation views, overlays, and third-party registrations remain part of the original Harness plugin graph.
+
 ## 0.1.0 — 2026-08-28
 
 ### Added
