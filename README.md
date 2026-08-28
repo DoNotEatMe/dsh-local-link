@@ -4,7 +4,7 @@
 [![npm](https://img.shields.io/npm/v/dsh-local-link.svg)](https://www.npmjs.com/package/dsh-local-link)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Lightweight local-network access to the complete [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web interface.
+Lightweight, self-hosted [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin for paired LAN access to the complete DSH Web interface.
 
 Open `Local access`, scan one QR code, and continue the desktop's currently selected Harness session from a phone, tablet, or another computer on the same private network. There is no hosted relay, tunnel provider, native application, account, replacement chat UI, or second workspace picker.
 
