@@ -48,7 +48,7 @@ dsh web
 
 ### Git clone — development checkout
 
-Requirements: Git, Node.js 22.19+ or 24+, Corepack, and a global `dsh` installation running DeepSeek Harness `0.1.1-rc.2`.
+Requirements: Git, Node.js 22.19+ or 24+, Corepack, and a global `dsh` installation running a verified DeepSeek Harness version from the compatibility table below.
 
 ```shell
 git clone https://github.com/DoNotEatMe/dsh-local-link.git
@@ -60,6 +60,19 @@ dsh web
 ```
 
 The profile points at the checkout, so rebuild after changing client code and restart `dsh web` after Host-side changes.
+
+## Compatibility
+
+Compatibility is checked against exact DeepSeek Harness versions, including the real Web client, Local Access pairing flow, responsive navigation, Current session, and subagent surfaces. A successful package installation alone is not treated as compatibility proof.
+
+| DeepSeek Harness | Local Link status | Notes |
+| --- | --- | --- |
+| `0.1.2-alpha.1` | **Verified in development** | Current `main` includes the native browser-authentication and stream compatibility required by this alpha. |
+| `0.1.1-rc.2` | **Supported baseline** | Primary development and complete repository verification target. |
+| `0.1.1-rc.1` | **Verified** | Core LAN, pairing, session, and Mobile View surfaces checked. |
+| `0.1.0-rc.8` | **Verified** | Core LAN, pairing, session, and Mobile View surfaces checked. |
+
+Versions older than `0.1.0-rc.8` are untested and unsupported. Every newer Harness prerelease is checked independently before support is claimed. See the full [compatibility policy](docs/COMPATIBILITY.md).
 
 ## Use
 
@@ -243,7 +256,6 @@ Project documentation:
 - Invitations use the highest-ranked private IPv4 interface detected at startup; choosing among multiple LAN interfaces is not exposed yet.
 - The shortcut that opens a specific Settings section uses a small semantic compatibility bridge because Harness `0.1.1-rc.2` exposes `openSection` only to onboarding.
 - Harness's footer-action container needs a compatibility layout rule when the full-width Cordis action is present.
-- DeepSeek Harness `0.1.1-rc.2` is the supported baseline. `0.1.1-rc.1` and `0.1.0-rc.8` are verified. `0.1.2-alpha.1` is verified by the current development checkout and will be supported by the next plugin release; see [compatibility](docs/COMPATIBILITY.md) for the current status and support policy.
 - Mobile View targets viewports from 360 CSS pixels wide, but third-party fixed-width views, virtual keyboards, orientation changes, split-screen browsers, and operating-system text scaling still require real-device acceptance.
 - Plugin-owned buttons and text inputs use Harness `Button` and `Input` primitives and their semantic variants. Harness `0.1.1-rc.2` still has no public responsive-shell, spacing, or radius contract, so mobile geometry, responsive compositions, and the few missing primitive icons remain documented design-system compatibility risks.
 
