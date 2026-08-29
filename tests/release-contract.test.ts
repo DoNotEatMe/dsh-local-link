@@ -29,6 +29,7 @@ describe('release contract', () => {
     expect(compatibility).toContain('0.1.1-rc.1')
     expect(compatibility).toContain('0.1.0-rc.8')
     expect(compatibility).toContain('0.1.2-alpha.1')
+    expect(compatibility).toContain('Known incompatible')
     expect(compatibility).toContain('There is no Mobile View URL flag')
     expect(metadata.files).toContain('docs/images/*.jpg')
     expect(metadata.files).toContain('docs/images/*.png')
@@ -41,7 +42,7 @@ describe('release contract', () => {
 
     const compatibilityImages = [...compatibility.matchAll(/src="(images\/compat-[^"]+)"/gu)]
       .map(match => match[1])
-    expect(compatibilityImages).toHaveLength(12)
+    expect(compatibilityImages).toHaveLength(17)
     await Promise.all(compatibilityImages.map(async image => access(resolve(root, 'docs', image ?? 'missing'))))
 
     const localLinks = [...readme.matchAll(/\]\((?!https?:|#)([^)#]+)(?:#[^)]+)?\)/gu)]

@@ -17,7 +17,7 @@ Node.js 22, and Windows:
 | `0.1.1-rc.2` | **Supported baseline** | Complete Local Link typecheck and 92-test suite; clean package/profile install; Host `200`; unauthenticated gateway `401`; client boot entry; populated Mobile View fixture across navigation, chat, Current session, and subagents |
 | `0.1.1-rc.1` | **Verified previous release** | Clean package/profile install; Host and gateway boundary checks; client boot entry; the same populated four-surface Mobile View fixture |
 | `0.1.0-rc.8` | **Verified previous release** | Clean package/profile install; Host and gateway boundary checks; client boot entry; the same populated four-surface Mobile View fixture |
-| `0.1.2-alpha.1` | **Not verified** | Source-only upstream prerelease at the verification date; it changes client/proxy/authentication contracts and requires a dedicated compatibility port before support can be claimed |
+| `0.1.2-alpha.1` | **Known incompatible** | Official tag `dsh-v0.1.2-alpha.1` (`cd5ef814…`) builds and accepts the plugin, but Local Link pairing cannot establish the new authority-bound Harness browser session; the alpha header also prevents the Current session action from mounting |
 
 Versions older than `0.1.0-rc.8` are untested and unsupported.
 
@@ -28,8 +28,8 @@ Versions older than `0.1.0-rc.8` are untested and unsupported.
 - **Verified previous release** proves published-package installation, boot and
   the same populated browser fixture. It remains a compatibility target, but
   new development is based on the supported baseline.
-- **Not verified** is explicit: package installation or runtime behavior has
-  not been proven, so no compatibility claim is made.
+- **Known incompatible** means the published plugin was installed and exercised,
+  and at least one required end-to-end behavior failed.
 
 ## Browser evidence
 
@@ -53,6 +53,37 @@ rewrite: `matchMedia('(max-width: 834px)')` selects the responsive presentation.
 The screenshots prove the four named responsive surfaces with a populated
 session. They do not replace the real-phone portrait/landscape checklist or
 prove arbitrary third-party fixed-width views.
+
+### `0.1.2-alpha.1` incompatibility evidence
+
+The alpha was checked from the official Git tag because it was not available
+through the npm release channel. The checkout built successfully, and the
+published `dsh-local-link@0.2.1` package installed into an isolated alpha Web
+profile. Desktop Local access, QR generation, responsive chat, navigation, and
+the subagent sheet mounted. That partial rendering is not enough to call the
+release compatible.
+
+| Alpha desktop integration | Required pairing path |
+| --- | --- |
+| <img src="images/compat-0.1.2-alpha.1-desktop-local-access.jpg" width="420" alt="Local Link desktop Local access panel mounted on Harness 0.1.2-alpha.1"> | <img src="images/compat-0.1.2-alpha.1-pairing-stalled.jpg" width="210" alt="Local Link pairing stalled on Harness 0.1.2-alpha.1"> |
+
+| Alpha navigation | Alpha chat | Alpha subagents |
+| --- | --- | --- |
+| <img src="images/compat-0.1.2-alpha.1-navigation.jpg" width="210" alt="Partial Local Link Mobile View navigation on Harness 0.1.2-alpha.1"> | <img src="images/compat-0.1.2-alpha.1-chat.jpg" width="210" alt="Partial Local Link Mobile View chat on Harness 0.1.2-alpha.1"> | <img src="images/compat-0.1.2-alpha.1-subagents.jpg" width="210" alt="Partial Local Link subagents sheet on Harness 0.1.2-alpha.1"> |
+
+The pairing POST consumes the invitation and records the browser, but the next
+gateway root request cannot establish Harness's new browser authentication and
+remains on `Connecting this device…`. Alpha requires an authority-bound signed
+cookie for every Host RPC and WebSocket. Local Link's gateway credential is a
+different cookie and is deliberately removed before upstream proxying, so the
+alpha Host returns `401`. The printed alpha `?token=…` is Harness authentication,
+not a Mobile View flag; successful local exchange still redirects to a clean
+root URL.
+
+The alpha conversation header also changed enough that the plugin's Current
+session action is absent, although the width-driven shell and subagent sheet
+still activate. Supporting this release therefore requires an explicit alpha
+authentication handoff and a header integration update.
 
 ## What was exercised
 

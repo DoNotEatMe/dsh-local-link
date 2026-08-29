@@ -243,7 +243,7 @@ Project documentation:
 - Invitations use the highest-ranked private IPv4 interface detected at startup; choosing among multiple LAN interfaces is not exposed yet.
 - The shortcut that opens a specific Settings section uses a small semantic compatibility bridge because Harness `0.1.1-rc.2` exposes `openSection` only to onboarding.
 - Harness's footer-action container needs a compatibility layout rule when the full-width Cordis action is present.
-- DeepSeek Harness `0.1.1-rc.2` is the supported baseline. `0.1.1-rc.1` and `0.1.0-rc.8` passed the same populated four-surface Mobile View fixture; `0.1.2-alpha.1` is explicitly unverified. See [compatibility](docs/COMPATIBILITY.md) for the visual evidence and limits.
+- DeepSeek Harness `0.1.1-rc.2` is the supported baseline. `0.1.1-rc.1` and `0.1.0-rc.8` passed the same populated four-surface Mobile View fixture. `0.1.2-alpha.1` is known incompatible because its new browser authentication cannot yet be established through the Local Link gateway and its changed header omits Current session. See [compatibility](docs/COMPATIBILITY.md) for the visual evidence and limits.
 - Mobile View targets viewports from 360 CSS pixels wide, but third-party fixed-width views, virtual keyboards, orientation changes, split-screen browsers, and operating-system text scaling still require real-device acceptance.
 - Plugin-owned buttons and text inputs use Harness `Button` and `Input` primitives and their semantic variants. Harness `0.1.1-rc.2` still has no public responsive-shell, spacing, or radius contract, so mobile geometry, responsive compositions, and the few missing primitive icons remain documented design-system compatibility risks.
 
