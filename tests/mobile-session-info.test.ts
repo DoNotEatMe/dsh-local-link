@@ -12,6 +12,7 @@ import {
   currentModelName,
   formatSessionDuration,
   formatSessionTokens,
+  lastUsedModel,
   mobilePresetLabel,
   permissionName,
   permissionValue,
@@ -50,6 +51,14 @@ describe('mobile session information', () => {
       current: { provider: 'llama', model: 'qwen-local' },
       groups: [{ id: 'llama', models: [{ id: 'qwen-local', name: 'Qwen Local' }] }],
     })).toBe('Qwen Local')
+  })
+
+  it('keeps the model fallback compatible with both legacy and alpha conversation snapshots', () => {
+    expect(lastUsedModel({ nodes: [
+      { kind: 'assistant', provenance: { provider: 'llama', model: 'qwen-local' } },
+    ] })).toBe('llama · qwen-local')
+    expect(lastUsedModel({ messages: [] })).toBeUndefined()
+    expect(lastUsedModel(undefined)).toBeUndefined()
   })
 
   it('opens and closes without keeping a second session store', () => {

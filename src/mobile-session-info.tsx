@@ -1,5 +1,5 @@
 import React, { useEffect, useSyncExternalStore } from 'react'
-import type { ClientContext, ConversationSnapshot, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-session-log-export/client'
@@ -230,13 +230,17 @@ export function currentModelName(value: unknown): string | undefined {
   return typeof model?.name === 'string' ? model.name : modelId
 }
 
-export function lastUsedModel(snapshot: ConversationSnapshot): string | undefined {
-  for (let index = snapshot.nodes.length - 1; index >= 0; index -= 1) {
-    const node = snapshot.nodes[index]
+export function lastUsedModel(value: unknown): string | undefined {
+  const nodes = recordOf(value)?.nodes
+  if (!Array.isArray(nodes)) return undefined
+  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+    const node = recordOf(nodes[index])
     if (node?.kind !== 'assistant') continue
-    const identity = node.requestConfig ?? node.provenance
-    if (identity?.model === undefined) continue
-    return identity.provider.length > 0 ? `${identity.provider} · ${identity.model}` : identity.model
+    const identity = recordOf(node.requestConfig) ?? recordOf(node.provenance)
+    const model = typeof identity?.model === 'string' ? identity.model : undefined
+    if (model === undefined) continue
+    const provider = typeof identity?.provider === 'string' ? identity.provider : ''
+    return provider.length > 0 ? `${provider} · ${model}` : model
   }
   return undefined
 }

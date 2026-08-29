@@ -14,11 +14,11 @@ import type { ResolvedConfig } from '../config.js'
 import { DiagnosticStore, type DiagnosticCode, type DiagnosticEvent } from '../diagnostics.js'
 import { allowedGatewayHost, isPrivateAddress, privateInterfaceAddresses } from '../network.js'
 import { rewriteAuthenticatedIndex } from './html.js'
-import { PAIR_PAGE, PAIR_PATH } from './pair-page.js'
+import { CONNECT_PATH, PAIR_PAGE, PAIR_PATH } from './pair-page.js'
 
 const COOKIE_NAME = 'dsh_local_link_device'
 const MAX_PAIR_BODY = 4096
-const EVENT_PATHS = new Set(['/api/events.mux', '/api/events.host'])
+const STREAM_PATHS = new Set(['/api/events.mux', '/api/events.host', '/api/remote.mux'])
 const HOP_BY_HOP_HEADERS = new Set([
   'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
   'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade',
@@ -66,6 +66,13 @@ function send(response: ServerResponse, status: number, body: string, type = 'te
   response.end(body)
 }
 
+function upstreamCookieHeader(request: IncomingMessage): string | undefined {
+  const cookies = (request.headers.cookie ?? '').split(';')
+    .map(part => part.trim())
+    .filter(part => part !== '' && part.split('=', 1)[0] !== COOKIE_NAME)
+  return cookies.length > 0 ? cookies.join('; ') : undefined
+}
+
 function proxyRequestHeaders(request: IncomingMessage, websocket = false): OutgoingHttpHeaders {
   const headers: OutgoingHttpHeaders = {}
   for (const [name, value] of Object.entries(request.headers)) {
@@ -74,14 +81,16 @@ function proxyRequestHeaders(request: IncomingMessage, websocket = false): Outgo
       || lower.startsWith('x-forwarded-') || (!websocket && HOP_BY_HOP_HEADERS.has(lower))) continue
     headers[lower] = value
   }
+  const cookie = upstreamCookieHeader(request)
+  if (cookie !== undefined) headers.cookie = cookie
   return headers
 }
 
-function proxyResponseHeaders(headers: IncomingHttpHeaders): OutgoingHttpHeaders {
+function proxyResponseHeaders(headers: IncomingHttpHeaders, forwardSetCookie = false): OutgoingHttpHeaders {
   const result: OutgoingHttpHeaders = {}
   for (const [name, value] of Object.entries(headers)) {
     const lower = name.toLowerCase()
-    if (value === undefined || HOP_BY_HOP_HEADERS.has(lower) || lower === 'set-cookie') continue
+    if (value === undefined || HOP_BY_HOP_HEADERS.has(lower) || (lower === 'set-cookie' && !forwardSetCookie)) continue
     result[lower] = value
   }
   return result
@@ -100,10 +109,14 @@ function serializeHeaders(headers: OutgoingHttpHeaders): string[] {
 
 function requestKind(pathname: string): string {
   if (pathname === '/') return 'root'
-  if (EVENT_PATHS.has(pathname)) return 'events'
+  if (STREAM_PATHS.has(pathname)) return 'events'
   if (pathname.startsWith('/api/')) return 'api'
   if (/\.[a-z0-9]{1,8}$/iu.test(pathname)) return 'asset'
   return 'page'
+}
+
+export function supportedWebSocketTarget(target: URL): boolean {
+  return target.search === '' && STREAM_PATHS.has(target.pathname)
 }
 
 export class LocalGateway {
@@ -113,6 +126,7 @@ export class LocalGateway {
   private readonly upgradedSockets = new Set<Socket>()
   private server: Server | undefined
   private addresses: string[] = []
+  private browserAuthenticationUrl: ((baseUrl: string) => string) | undefined
 
   constructor(readonly config: ResolvedConfig) {
     this.devices = new DeviceStore(config.stateFile, config.deviceTtlMs)
@@ -161,6 +175,13 @@ export class LocalGateway {
 
   trustedAuthorities(): readonly string[] {
     return Object.freeze(this.addresses.map(address => formatAuthority(address, this.config.listenPort)))
+  }
+
+  attachBrowserAuthentication(factory: (baseUrl: string) => string): () => void {
+    this.browserAuthenticationUrl = factory
+    return () => {
+      if (this.browserAuthenticationUrl === factory) this.browserAuthenticationUrl = undefined
+    }
   }
 
   diagnosticEvents(): readonly DiagnosticEvent[] {
@@ -250,11 +271,36 @@ export class LocalGateway {
       send(response, 401, 'This browser is not paired. Open Local access in the computer sidebar and scan its QR code.')
       return
     }
+    if (url.pathname === CONNECT_PATH && request.method === 'GET') {
+      const authenticationUrl = this.browserAuthenticationUrl
+      if (authenticationUrl === undefined) {
+        response.writeHead(303, { location: '/', 'cache-control': 'no-store' })
+        response.end()
+        return
+      }
+      try {
+        const origin = new URL(`http://${request.headers.host ?? ''}`)
+        const target = new URL(authenticationUrl(origin.href))
+        if (target.origin !== origin.origin || target.pathname !== '/' || target.hash !== '') {
+          throw new Error('invalid authentication handoff')
+        }
+        response.writeHead(303, {
+          location: `${target.pathname}${target.search}`,
+          'cache-control': 'no-store',
+          'referrer-policy': 'no-referrer',
+        })
+        response.end()
+      } catch {
+        void this.diagnostics.record('error', 'BROWSER_AUTH_HANDOFF_FAILED', { reason: 'invalid_target' })
+        send(response, 502, 'DeepSeek Harness browser authentication is unavailable')
+      }
+      return
+    }
     const interceptIndex = request.method === 'GET' && url.pathname === '/'
-    this.proxyHttp(request, response, interceptIndex)
+    this.proxyHttp(request, response, interceptIndex, interceptIndex && url.searchParams.has('token'))
   }
 
-  private proxyHttp(request: IncomingMessage, response: ServerResponse, interceptIndex: boolean): void {
+  private proxyHttp(request: IncomingMessage, response: ServerResponse, interceptIndex: boolean, browserTokenExchange: boolean): void {
     const headers = proxyRequestHeaders(request)
     if (interceptIndex) headers['accept-encoding'] = 'identity'
     const upstreamRequest = requestHttp({
@@ -266,7 +312,7 @@ export class LocalGateway {
       agent: false,
     }, (upstreamResponse) => {
       if (!interceptIndex || !String(upstreamResponse.headers['content-type'] ?? '').includes('text/html')) {
-        response.writeHead(upstreamResponse.statusCode ?? 502, proxyResponseHeaders(upstreamResponse.headers))
+        response.writeHead(upstreamResponse.statusCode ?? 502, proxyResponseHeaders(upstreamResponse.headers, browserTokenExchange))
         upstreamResponse.pipe(response)
         return
       }
@@ -306,7 +352,7 @@ export class LocalGateway {
       return
     }
     const target = new URL(request.url ?? '/', this.config.upstreamOrigin)
-    if (target.search !== '' || !EVENT_PATHS.has(target.pathname)) {
+    if (!supportedWebSocketTarget(target)) {
       void this.diagnostics.record('warn', 'WS_REJECTED', { reason: 'unsupported_path' })
       client.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n')
       return

@@ -2,6 +2,7 @@ import en from '../locales/en.json' with { type: 'json' }
 import zh from '../locales/zh.json' with { type: 'json' }
 
 export const PAIR_PATH = '/__dsh-local-link/pair'
+export const CONNECT_PATH = '/__dsh-local-link/connect'
 
 const pairCopies = {
   en: {
@@ -57,7 +58,7 @@ export const PAIR_PAGE = `<!doctype html>
       request.send(JSON.stringify({token,device:{type,browser}}));
     });
     if(sessionId)try{localStorage.setItem('dsh.sessions.current',JSON.stringify({sessionId}));}catch{}
-    location.replace('/');
+    location.replace('${CONNECT_PATH}');
   }catch(error){stop(error instanceof Error?error.message:copy.failed);}})();
 </script>
 </html>`

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ResolvedConfig } from '../src/config.js'
-import { LocalGateway } from '../src/gateway/local-gateway.js'
+import { LocalGateway, supportedWebSocketTarget } from '../src/gateway/local-gateway.js'
 
 const cleanups: Array<() => Promise<void>> = []
 afterEach(async () => {
@@ -21,6 +21,14 @@ async function availablePort(): Promise<number> {
 }
 
 describe('LocalGateway', () => {
+  it('allows only the exact stock stream transports used by supported Harness versions', () => {
+    expect(supportedWebSocketTarget(new URL('http://gateway.test/api/events.mux'))).toBe(true)
+    expect(supportedWebSocketTarget(new URL('http://gateway.test/api/events.host'))).toBe(true)
+    expect(supportedWebSocketTarget(new URL('http://gateway.test/api/remote.mux'))).toBe(true)
+    expect(supportedWebSocketTarget(new URL('http://gateway.test/api/remote.mux?token=bad'))).toBe(false)
+    expect(supportedWebSocketTarget(new URL('http://gateway.test/api/arbitrary'))).toBe(false)
+  })
+
   it('pairs once, protects the root, and proxies an authenticated browser', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-local-link-gateway-'))
     cleanups.push(() => rm(root, { recursive: true, force: true }))
@@ -88,6 +96,11 @@ describe('LocalGateway', () => {
     expect(gateway.diagnosticEvents()[0]).toMatchObject({ level: 'warn', code: 'AUTH_REQUIRED' })
     const cookie = paired.headers.get('set-cookie')?.split(';', 1)[0]
     expect(cookie).toContain('dsh_local_link_device=')
+    const legacyConnect = await fetch(`${origin}/__dsh-local-link/connect`, {
+      redirect: 'manual', headers: { cookie: cookie ?? '' },
+    })
+    expect(legacyConnect.status).toBe(303)
+    expect(legacyConnect.headers.get('location')).toBe('/')
     expect((await fetch(`${origin}/__dsh-local-link/pair`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }),
     })).status).toBe(410)
@@ -124,5 +137,63 @@ describe('LocalGateway', () => {
     expect(observedHeaders?.cookie).toBeUndefined()
     expect(gateway.trustedAuthorities()).toEqual([`127.0.0.1:${gatewayPort}`])
 
+  })
+
+  it('uses the native Harness browser-authentication handoff without forwarding its device cookie', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-local-link-browser-auth-'))
+    cleanups.push(() => rm(root, { recursive: true, force: true }))
+    const upstreamPort = await availablePort()
+    const gatewayPort = await availablePort()
+    let observedCookie: string | undefined
+    const upstream = createServer((request, response) => {
+      if (request.url === '/?token=harness-process') {
+        response.writeHead(303, { location: '/', 'set-cookie': 'dsh_browser_session=signed; HttpOnly; SameSite=Strict; Path=/' })
+        response.end()
+        return
+      }
+      observedCookie = request.headers.cookie
+      const body = '<html><main>Harness</main></html>'
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(body) })
+      response.end(body)
+    })
+    await new Promise<void>((resolve, reject) => upstream.listen(upstreamPort, '127.0.0.1', resolve).once('error', reject))
+    cleanups.push(() => new Promise<void>((resolve, reject) => upstream.close(error => error === undefined ? resolve() : reject(error))))
+
+    const gateway = new LocalGateway({
+      listenHost: '127.0.0.1', listenPort: gatewayPort,
+      upstreamOrigin: new URL(`http://127.0.0.1:${upstreamPort}`), accessMode: 'pairing',
+      pairingTtlMs: 300_000, deviceTtlMs: 86_400_000,
+      diagnosticsEnabled: true, diagnosticsMaxEntries: 15,
+      diagnosticsFile: join(root, 'diagnostics.json'), stateFile: join(root, 'devices.json'),
+    })
+    await gateway.start()
+    cleanups.push(() => gateway.close())
+    const origin = `http://127.0.0.1:${gatewayPort}`
+    const detach = gateway.attachBrowserAuthentication(baseUrl => `${baseUrl}?token=harness-process`)
+    cleanups.push(async () => { detach() })
+
+    const pairing = gateway.issuePairing()
+    const paired = await fetch(`${origin}/__dsh-local-link/pair`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: new URL(pairing.url).hash.slice('#token='.length), device: { type: 'Phone', browser: 'Chrome' } }),
+    })
+    const deviceCookie = paired.headers.get('set-cookie')?.split(';', 1)[0] ?? ''
+    const handoff = await fetch(`${origin}/__dsh-local-link/connect`, {
+      redirect: 'manual', headers: { cookie: deviceCookie },
+    })
+    expect(handoff.status).toBe(303)
+    expect(handoff.headers.get('location')).toBe('/?token=harness-process')
+
+    const exchange = await fetch(`${origin}${handoff.headers.get('location') ?? ''}`, {
+      redirect: 'manual', headers: { cookie: deviceCookie },
+    })
+    expect(exchange.status).toBe(303)
+    expect(exchange.headers.get('location')).toBe('/')
+    const harnessCookie = exchange.headers.get('set-cookie')?.split(';', 1)[0] ?? ''
+    expect(harnessCookie).toBe('dsh_browser_session=signed')
+
+    const index = await fetch(origin, { headers: { cookie: `${deviceCookie}; ${harnessCookie}` } })
+    expect(index.status).toBe(200)
+    expect(observedCookie).toBe(harnessCookie)
   })
 })

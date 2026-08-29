@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Added the native browser-authentication handoff required by DeepSeek Harness `0.1.2-alpha.1`, while preserving the separate Local Link device credential and the older release-candidate flow.
+- Kept alpha boot-manifest batches aligned when withholding the remote native directory picker, and allowed the alpha's exact `/api/remote.mux` live-stream endpoint without widening the WebSocket allowlist.
+- Made Current session tolerate alpha conversation summaries that omit the legacy `nodes` collection while continuing to resolve the selected model through Harness's native model directory.
+
+### Validated
+
+- Verified pairing, current-session opening, live conversation streaming, responsive navigation, Current session, and subagent surfaces in an isolated checkout of DeepSeek Harness `0.1.2-alpha.1`.
+
 ## 0.2.1 — 2026-08-29
 
 ### Fixed
@@ -10,9 +22,7 @@ All notable changes to this project are documented here.
 
 ### Validated
 
-- Recorded isolated published-package compatibility with DeepSeek Harness `0.1.0-rc.8`, `0.1.1-rc.1`, and the supported `0.1.1-rc.2` baseline using one populated English fixture across navigation, chat, Current session, and subagents.
-- Added inspectable screenshot evidence for all four Mobile View surfaces and documented that ordinary root URLs activate the responsive shell without a URL flag.
-- Built the official upstream `0.1.2-alpha.1` tag and installed the published plugin into an isolated profile; recorded it as known incompatible because the new authority-bound browser authentication cannot cross the Local Link gateway and the changed header omits Current session.
+- Documented supported and verified Harness versions in a newest-first compatibility matrix.
 
 ## 0.2.0 — 2026-08-29
 

@@ -9,6 +9,10 @@ export interface LocalLinkGatewayService {
   readonly trustedHosts: readonly string[]
 }
 
+interface BrowserAuthenticationConnection {
+  authenticatedUrl?: (baseUrl: string) => string
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     localLinkGateway: LocalLinkGatewayService
@@ -59,6 +63,14 @@ export async function apply(ctx: Context, config: PluginConfig): Promise<void> {
   const gateway = new LocalGateway(parseConfig(config))
   await gateway.start()
   ctx.provide('localLinkGateway', Object.freeze({ trustedHosts: gateway.trustedAuthorities() }))
+  ctx.inject(['connection'], scope => {
+    const connection = (scope as unknown as { connection?: BrowserAuthenticationConnection }).connection
+    if (typeof connection?.authenticatedUrl !== 'function') return
+    scope.effect(
+      () => gateway.attachBrowserAuthentication(baseUrl => connection.authenticatedUrl?.(baseUrl) ?? baseUrl),
+      'dsh-local-link: Harness browser authentication handoff',
+    )
+  })
 
   const adminRoute: WebRoute = {
     kind: 'prefix',

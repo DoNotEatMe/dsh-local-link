@@ -25,12 +25,19 @@ describe('release contract', () => {
     expect(architecture).toContain("matchMedia('(max-width: 834px)')")
     expect(mobileView).toContain("matchMedia('(max-width: 834px)')")
     expect(packageSource).toContain('docs/COMPATIBILITY.md')
-    expect(compatibility).toContain('0.1.1-rc.2')
-    expect(compatibility).toContain('0.1.1-rc.1')
-    expect(compatibility).toContain('0.1.0-rc.8')
-    expect(compatibility).toContain('0.1.2-alpha.1')
-    expect(compatibility).toContain('Known incompatible')
-    expect(compatibility).toContain('There is no Mobile View URL flag')
+    const compatibilityVersions = [
+      '0.1.2-alpha.1',
+      '0.1.1-rc.2',
+      '0.1.1-rc.1',
+      '0.1.0-rc.8',
+    ]
+    const compatibilityPositions = compatibilityVersions.map(version => compatibility.indexOf(`| \`${version}\``))
+    expect(compatibilityPositions.every(position => position >= 0)).toBe(true)
+    expect(compatibilityPositions).toEqual([...compatibilityPositions].sort((left, right) => left - right))
+    expect(compatibility).toContain('Verified in development')
+    expect(compatibility).not.toContain('Known incompatible')
+    expect(compatibility).not.toContain('| Evidence |')
+    expect(compatibility).not.toContain('images/compat-')
     expect(metadata.files).toContain('docs/images/*.jpg')
     expect(metadata.files).toContain('docs/images/*.png')
     expect(cordisPatch).toContain('trustedHosts: !!js "[...ctx.webRuntime.trustedHosts, ...ctx.localLinkGateway.trustedHosts]"')
@@ -39,11 +46,6 @@ describe('release contract', () => {
     const images = [...readme.matchAll(/src="(docs\/images\/[^"]+)"/gu)].map(match => match[1])
     expect(images).toHaveLength(7)
     await Promise.all(images.map(async image => access(resolve(root, image ?? 'missing'))))
-
-    const compatibilityImages = [...compatibility.matchAll(/src="(images\/compat-[^"]+)"/gu)]
-      .map(match => match[1])
-    expect(compatibilityImages).toHaveLength(17)
-    await Promise.all(compatibilityImages.map(async image => access(resolve(root, 'docs', image ?? 'missing'))))
 
     const localLinks = [...readme.matchAll(/\]\((?!https?:|#)([^)#]+)(?:#[^)]+)?\)/gu)]
       .map(match => match[1])

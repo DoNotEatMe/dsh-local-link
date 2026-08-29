@@ -7,9 +7,14 @@ const RANDOM_UUID_POLYFILL = `if(!window.crypto.randomUUID){window.crypto.random
 
 interface BootEntry { id?: unknown }
 
+interface BootBatch {
+  entries?: unknown
+}
+
 interface BootManifest {
   rev?: unknown
   entries?: unknown
+  batches?: unknown
 }
 
 function ensureResponsiveViewport(html: string): string {
@@ -29,9 +34,21 @@ function ensureResponsiveViewport(html: string): string {
   return `${html.slice(0, match.index)}${replacement}${html.slice(match.index + match[0].length)}`
 }
 
-function removeHostDirectoryPickers(entries: BootEntry[]): void {
+function removeHostDirectoryPickers(manifest: BootManifest, entries: BootEntry[]): void {
+  const removed = new Set<string>()
   for (let index = entries.length - 1; index >= 0; index -= 1) {
-    if (HOST_DIRECTORY_PICKER_IDS.has(String(entries[index]?.id))) entries.splice(index, 1)
+    const id = String(entries[index]?.id)
+    if (!HOST_DIRECTORY_PICKER_IDS.has(id)) continue
+    removed.add(id)
+    entries.splice(index, 1)
+  }
+  if (!Array.isArray(manifest.batches) || removed.size === 0) return
+  for (const value of manifest.batches) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) continue
+    const batch = value as BootBatch
+    if (Array.isArray(batch.entries)) {
+      batch.entries = batch.entries.filter(id => !removed.has(String(id)))
+    }
   }
 }
 
@@ -51,7 +68,7 @@ export function rewriteAuthenticatedIndex(html: string): string {
   if (!Array.isArray(manifest.entries)) throw new Error('DSH boot manifest has no entries')
   const entries = manifest.entries as BootEntry[]
   if (!entries.some(entry => entry.id === CLIENT_ID)) throw new Error('dsh-local-link client is absent from DSH boot manifest')
-  removeHostDirectoryPickers(entries)
+  removeHostDirectoryPickers(manifest, entries)
 
   // Plain HTTP on a private IP is not a secure context. getRandomValues is
   // still available, so the stock browser RPC client can use an RFC 4122 v4

@@ -24,6 +24,7 @@ Mobile View does not reduce that authority. It inherits the selected Harness ses
 - `HttpOnly` and `SameSite=Strict` device cookie.
 - Device expiry and explicit revocation.
 - Authentication before HTTP proxying and WebSocket upgrade.
+- Separation of the Local Link device credential from Harness browser-authentication cookies during proxying and alpha token exchange.
 - Gateway-side block for desktop administration paths.
 - Structural loopback source, Host, and Origin validation for every desktop administration request; lookalike DNS names fail closed.
 - Gateway authorities declared through the stock connection `trustedHosts` contract without claiming loopback identity.
@@ -49,7 +50,7 @@ Revoking a device blocks subsequent requests and reconnects, but an already-upgr
 
 ### Version-sensitive Harness integration
 
-Authenticated LAN trust, remote boot capability filtering, direct Settings navigation, coexistence with the stock Cordis footer action, and responsive AppFrame presentation currently need small compatibility adapters for Harness `0.1.1-rc.2`. They do not grant privileged loopback methods, but a Harness upgrade can break presentation or fail closed. Before declaring another Harness version supported, rerun the trust-boundary suite and manually retest pairing, live conversation streaming, Settings navigation, rename, revoke, Cordis coexistence, mobile workspace/session actions, Current session, subagents, theme switching, and third-party conversation tabs.
+Authenticated LAN trust, browser-authentication handoff, remote boot capability filtering, direct Settings navigation, coexistence with the stock Cordis footer action, and responsive AppFrame presentation need small version-sensitive adapters. They do not grant privileged loopback methods, but a Harness upgrade can break presentation or fail closed. Before declaring another Harness version supported, rerun the trust-boundary suite and manually retest pairing, live conversation streaming, Settings navigation, rename, revoke, Cordis coexistence, mobile workspace/session actions, Current session, subagents, theme switching, and third-party conversation tabs.
 
 ### Firewall automation
 

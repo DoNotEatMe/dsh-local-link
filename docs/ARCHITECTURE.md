@@ -46,6 +46,8 @@ Configuration accepts only the wildcard `0.0.0.0` or an explicit private/loopbac
 
 After authentication, the gateway forwards the browser's original `Host`, `Origin`, referrer, and fetch-site headers to the loopback Harness listener. The Cordis profile patch supplies the gateway's current LAN authorities to the official connection module through its public `trustedHosts` option. Ordinary Harness API and WebSocket traffic can therefore pass the declared origin check without pretending to be loopback.
 
+Harness `0.1.2-alpha.1` additionally requires a native browser-authentication exchange. After Local Link pairing succeeds, the plugin asks the injected Harness connection service for an authenticated URL at the gateway origin, validates that the result stays on that origin, and lets the stock root consume the short-lived token. The gateway forwards Harness authentication cookies but strips its own device cookie before proxying, so the two credentials remain independent. Older release candidates do not expose this service and keep the direct-root redirect.
+
 The connection module separately rechecks privileged configuration, credential, native Host-action, and agent-preset-authoring methods with an empty trust extension. Those operations remain loopback-only. `tests/trust-boundary.test.ts` exercises this split against the real connection package: a trusted gateway authority reaches ordinary dispatch while every privileged method returns `403`.
 
 ### Authentication state
@@ -90,7 +92,7 @@ The compact appearance button is visually placed in the stock sidebar brand row 
 
 Theme persistence remains entirely owned by Harness SettingsScope. In Harness `0.1.1-rc.2`, the client Settings binder selects durable `host` storage only for loopback connections and `memory` storage for non-loopback connections. A phone can therefore change the theme for its current page, but reload creates a new remote SettingsScope and returns to the durable host preference—often `system`, which is then resolved using the phone's own color scheme. Local Link does not impersonate a loopback client and does not add a competing cookie or browser-storage preference. Persistent per-device theme selection requires a safe client/device preference scope from Harness.
 
-The authenticated gateway manifest omits Harness's host directory-picker client capability. The stock WorkspaceBrowser already treats `sidebar.workspaces.directoryFlow` as optional, so it naturally keeps Search, View options, existing workspaces, and sessions while withholding `Add workspace` from every remote gateway viewport. Loopback desktop boot entries are unchanged; no DOM selector or duplicated workspace browser is involved.
+The authenticated gateway manifest omits Harness's host directory-picker client capability. The stock WorkspaceBrowser already treats `sidebar.workspaces.directoryFlow` as optional, so it naturally keeps Search, View options, existing workspaces, and sessions while withholding `Add workspace` from every remote gateway viewport. In alpha manifests the same entry is removed from the batch activation list without rewriting the server-registered batch URL. Loopback desktop boot entries are unchanged; no DOM selector or duplicated workspace browser is involved.
 
 Subagent controls also stay inside the native graph. A mobile-only list entry in `conversation.input.dock` projects the existing `useSessions` catalog into a compact status chip above the composer. The sheet itself is an additive `shell.overlay` entry, while a higher-priority mobile occupant of `conversation.session.header.lineage` removes the desktop dropdown without replacing the session header. Opening and expanding the sheet uses `ctx.sessions.setSubagentCatalogOpen`; selecting a row uses `ctx.sessions.openSubagent`. Closing the sheet or a tree branch releases every corresponding catalog observation. There is no second session store, WebSocket, or data-polling loop. While the sheet is visible, one one-second presentation clock updates displayed activity durations from the already-observed catalog and is cleared when the sheet closes.
 
@@ -140,10 +142,10 @@ This boundary keeps connection setup in one place and persistent access manageme
 2. The Host builds a LAN URL containing the token and current session in the fragment, then renders the same URL as a QR data URL. Neither value reaches the initial HTTP request.
 3. The phone opens a minimal automatic connection page. The secret remains in the URL fragment and is not sent in the initial HTTP request.
 4. The page immediately POSTs the token with a coarse device category and browser name; there is no confirmation form and no fingerprinting.
-5. The gateway consumes the token, stores a credential hash, and sets the browser cookie.
+5. The gateway consumes the token, stores a credential hash, and sets the Local Link browser cookie.
 6. The desktop's loopback-only status check observes the consumed token and closes the QR panel.
 7. Before booting Harness, the page writes the selected session into Harness's own `dsh.sessions.current` persisted-selection cell for the LAN browser origin.
-8. The browser redirects to the complete stock Harness root. Harness loads the shared server-side session list and opens the transferred current conversation, whose ordinary WebSocket stream shows live agent activity.
+8. The browser continues through the native Harness browser-authentication handoff when the installed version requires it, then redirects to the complete stock Harness root. Harness loads the shared server-side session list and opens the transferred current conversation, whose ordinary WebSocket stream shows live agent activity.
 
 ### Normal request
 
@@ -155,7 +157,7 @@ This boundary keeps connection setup in one place and persistent access manageme
 
 ### WebSocket upgrade
 
-The same network, Host, and credential checks run before the upgrade is passed to the upstream server. Revocation affects new connections; a future milestone will actively close already-open sockets for a revoked device.
+The same network, Host, and credential checks run before an exact supported stream path is passed to the upstream server. Release candidates use `/api/events.mux` or `/api/events.host`; `0.1.2-alpha.1` uses `/api/remote.mux`. Query-bearing and arbitrary WebSocket paths remain rejected. Revocation affects new connections; a future milestone will actively close already-open sockets for a revoked device.
 
 ## Dependency policy
 
@@ -164,17 +166,18 @@ Runtime dependencies are intentionally limited:
 - `@deepseek-ai/schemastery`: Cordis-compatible configuration schema.
 - `qrcode`: QR rendering for the desktop sidebar panel.
 
-HTTP forwarding and the two Harness event WebSocket tunnels use Node's built-in `node:http` and `node:net` modules. No general-purpose proxy package is shipped.
+HTTP forwarding and the supported Harness event WebSocket tunnels use Node's built-in `node:http` and `node:net` modules. No general-purpose proxy package is shipped.
 
 No service discovery, certificate generator, tunnel client, native application, analytics SDK, remote log collector, or extension runtime is included.
 
 ## Compatibility strategy
 
-The plugin targets DeepSeek Harness `0.1.1-rc.2`. Most integration uses declared package contracts, but several adapters are intentionally version-sensitive:
+The plugin uses DeepSeek Harness `0.1.1-rc.2` as its development baseline and explicitly adapts `0.1.2-alpha.1`. Most integration uses declared package contracts, but several adapters are intentionally version-sensitive:
 
 | Adapter | Why it exists | Failure behavior | Removal condition |
 | --- | --- | --- | --- |
 | Connection `trustedHosts` profile patch | Authenticated non-loopback pages need an explicitly declared LAN authority for ordinary API and WebSocket traffic. | An undeclared authority is rejected; privileged RPCs remain loopback-only independently. | Harness exposes a first-class authenticated-gateway registration contract. |
+| Alpha browser-authentication handoff | `0.1.2-alpha.1` requires a native one-time browser token in addition to Local Link device pairing. | An absent or invalid handoff fails closed and records `BROWSER_AUTH_HANDOFF_FAILED`; older release candidates keep their direct-root path. | Harness publishes a stable gateway-authentication contract across releases. |
 | Remote boot capability filter | The native directory picker targets the Host filesystem and is misleading from a remote browser. | If the known picker entries change, `Add workspace` can reappear; server authorization remains unchanged. | Harness exposes a remote-client capability policy. |
 | Settings navigation bridge | The shell keeps `openSection` private outside onboarding. | The shortcut does nothing; ordinary `Settings → Local access` remains available. | Harness exposes general settings navigation. |
 | Footer stack rule | Cordis reserves a full-width cell inside a horizontal list container. | Without it, Local access has zero width while Cordis is mounted. | Harness stacks full-width footer actions or gives entries an explicit layout contract. |
