@@ -113,7 +113,10 @@ describe('LocalGateway', () => {
     })
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
-    expect(await response.text()).toContain('window.crypto.getRandomValues')
+    const proxiedHtml = await response.text()
+    expect(proxiedHtml).toContain('window.crypto.getRandomValues')
+    expect(proxiedHtml).not.toContain('__DSH_LOCAL_LINK_MOBILE__')
+    expect(proxiedHtml).toContain('"url":"/plugins/layout.js"')
     expect(observedHeaders?.host).toBe(`127.0.0.1:${gatewayPort}`)
     expect(observedHeaders?.origin).toBe(origin)
     expect(observedHeaders?.referer).toBe(`${origin}/session/test`)
@@ -121,26 +124,5 @@ describe('LocalGateway', () => {
     expect(observedHeaders?.cookie).toBeUndefined()
     expect(gateway.trustedAuthorities()).toEqual([`127.0.0.1:${gatewayPort}`])
 
-    const narrowClientResponse = await fetch(`${origin}/?view=mobile`, {
-      headers: {
-        cookie: cookie ?? '',
-        'user-agent': 'Mozilla/5.0 (Linux; Android 14) Chrome/128 Mobile',
-      },
-    })
-    const narrowClientHtml = await narrowClientResponse.text()
-    expect(narrowClientResponse.status).toBe(200)
-    expect(narrowClientHtml).not.toContain('__DSH_LOCAL_LINK_MOBILE__')
-    expect(narrowClientHtml).toContain('"url":"/plugins/layout.js"')
-
-    const desktopResponse = await fetch(`${origin}/?view=desktop`, {
-      headers: {
-        cookie: cookie ?? '',
-        'user-agent': 'Mozilla/5.0 (Linux; Android 14) Chrome/128 Mobile',
-      },
-    })
-    const desktopHtml = await desktopResponse.text()
-    expect(desktopResponse.status).toBe(200)
-    expect(desktopHtml).not.toContain('window.__DSH_LOCAL_LINK_MOBILE__=true')
-    expect(desktopHtml).toContain('"url":"/plugins/layout.js"')
   })
 })

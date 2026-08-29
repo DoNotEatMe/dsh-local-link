@@ -8,6 +8,12 @@ All notable changes to this project are documented here.
 
 - Quoted the `trustedHosts` JavaScript expression in the bundled Cordis overlay so a clean npm installation parses and boots with the strict DSH patch-list YAML schema.
 
+### Validated
+
+- Recorded isolated published-package compatibility with DeepSeek Harness `0.1.0-rc.8`, `0.1.1-rc.1`, and the supported `0.1.1-rc.2` baseline using one populated English fixture across navigation, chat, Current session, and subagents.
+- Added inspectable screenshot evidence for all four Mobile View surfaces and documented that ordinary root URLs activate the responsive shell without a URL flag.
+- Marked upstream `0.1.2-alpha.1` as unverified until its changed client, proxy, and authentication contracts receive a dedicated compatibility port.
+
 ## 0.2.0 — 2026-08-29
 
 ### Added
