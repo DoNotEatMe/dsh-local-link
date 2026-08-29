@@ -54,7 +54,6 @@
   },
   "scripts": {
     "build": "tsdown",
-    "clean": "node ./scripts/clean.mjs",
     "prepack": "npm run build",
     "release:check": "npm run verify && pnpm audit --prod && npm publish --dry-run",
     "test": "vitest run",
