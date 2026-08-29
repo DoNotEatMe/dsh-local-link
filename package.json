@@ -128,11 +128,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DoNotEatMe/dsh-local-link.git"
+    "url": "git+https://github.com/donoteatme/dsh-local-link.git"
   },
   "packageManager": "pnpm@11.7.0",
   "bugs": {
-    "url": "https://github.com/DoNotEatMe/dsh-local-link/issues"
+    "url": "https://github.com/donoteatme/dsh-local-link/issues"
   },
-  "homepage": "https://github.com/DoNotEatMe/dsh-local-link#readme"
+  "homepage": "https://github.com/donoteatme/dsh-local-link#readme"
 }

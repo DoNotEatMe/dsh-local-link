@@ -1,6 +1,6 @@
 # dsh-local-link
 
-[![CI](https://github.com/DoNotEatMe/dsh-local-link/actions/workflows/ci.yml/badge.svg)](https://github.com/DoNotEatMe/dsh-local-link/actions/workflows/ci.yml)
+[![CI](https://github.com/donoteatme/dsh-local-link/actions/workflows/ci.yml/badge.svg)](https://github.com/donoteatme/dsh-local-link/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/dsh-local-link.svg)](https://www.npmjs.com/package/dsh-local-link)
 [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -51,7 +51,7 @@ dsh web
 Requirements: Git, Node.js 22.19+ or 24+, Corepack, and a global `dsh` installation running a verified DeepSeek Harness version from the compatibility table below.
 
 ```shell
-git clone https://github.com/DoNotEatMe/dsh-local-link.git
+git clone https://github.com/donoteatme/dsh-local-link.git
 cd dsh-local-link
 corepack pnpm install --frozen-lockfile
 npm run verify

@@ -5,7 +5,7 @@ Contributions are welcome when they preserve the project's narrow local-access s
 ## Set up
 
 ```powershell
-git clone https://github.com/DoNotEatMe/dsh-local-link.git
+git clone https://github.com/donoteatme/dsh-local-link.git
 Set-Location dsh-local-link
 corepack pnpm install --frozen-lockfile
 npm run verify
