@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/DoNotEatMe/dsh-local-link/actions/workflows/ci.yml/badge.svg)](https://github.com/DoNotEatMe/dsh-local-link/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/dsh-local-link.svg)](https://www.npmjs.com/package/dsh-local-link)
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Lightweight, self-hosted [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin for paired LAN access and a practical Mobile View of the existing DSH Web client.
