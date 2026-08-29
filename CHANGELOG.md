@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## 0.2.1 — 2026-08-29
+
+### Fixed
+
+- Quoted the `trustedHosts` JavaScript expression in the bundled Cordis overlay so a clean npm installation parses and boots with the strict DSH patch-list YAML schema.
+
 ## 0.2.0 — 2026-08-29
 
 ### Added

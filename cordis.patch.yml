@@ -5,7 +5,7 @@
 - id: connection
   inject: [webRuntime, localLinkGateway]
   config:
-    trustedHosts: !!js [...ctx.webRuntime.trustedHosts, ...ctx.localLinkGateway.trustedHosts]
+    trustedHosts: !!js "[...ctx.webRuntime.trustedHosts, ...ctx.localLinkGateway.trustedHosts]"
 
 - insert:
     - id: dsh-local-link

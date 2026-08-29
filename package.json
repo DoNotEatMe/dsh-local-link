@@ -1,6 +1,6 @@
 {
   "name": "dsh-local-link",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DeepSeek Harness plugin for lightweight LAN access to the current Web UI from phones, tablets, and other computers.",
   "publishConfig": {
     "access": "public"
