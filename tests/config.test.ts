@@ -21,6 +21,13 @@ describe('parseConfig', () => {
     })).toThrow(/127\.0\.0\.1/u)
   })
 
+  it('rejects a public listener address', () => {
+    expect(() => parseConfig({
+      stateFile: join(process.cwd(), 'devices.json'),
+      listenHost: '203.0.113.10',
+    })).toThrow(/private\/loopback/u)
+  })
+
   it('rejects relative state paths', () => {
     expect(() => parseConfig({ stateFile: 'devices.json' })).toThrow(/absolute/u)
   })

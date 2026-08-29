@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -59,5 +59,19 @@ describe('DiagnosticStore', () => {
     const store = new DiagnosticStore(file, 20, true)
     await expect(store.load()).resolves.toBeUndefined()
     expect(store.list()[0]).toMatchObject({ level: 'warn', code: 'DIAGNOSTICS_STATE_RESET' })
+  })
+
+  it('keeps background writes fail-soft but reports an explicit clear failure and recovers', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-local-link-diagnostics-'))
+    roots.push(root)
+    const file = join(root, 'diagnostics.json')
+    await mkdir(file)
+    const store = new DiagnosticStore(file, 20, true)
+    await expect(store.record('error', 'HTTP_UPSTREAM_ERROR')).resolves.toBeUndefined()
+    await expect(store.clear()).rejects.toBeDefined()
+
+    await rm(file, { recursive: true, force: true })
+    await expect(store.clear()).resolves.toBeUndefined()
+    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ version: 1, events: [] })
   })
 })

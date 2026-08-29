@@ -2,7 +2,18 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import QRCode from 'qrcode'
 import { Config, parseConfig, type PluginConfig } from './config.js'
+import { isLoopbackAdminSource } from './gateway/admin-auth.js'
 import { LocalGateway } from './gateway/local-gateway.js'
+
+export interface LocalLinkGatewayService {
+  readonly trustedHosts: readonly string[]
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    localLinkGateway: LocalLinkGatewayService
+  }
+}
 
 export const name = 'dsh-local-link'
 export const inject = ['webServer']
@@ -23,11 +34,11 @@ function sendJson(response: Parameters<WebRoute['handler']>[1], status: number, 
 }
 
 function localAdminRequest(request: Parameters<WebRoute['handler']>[0]): boolean {
-  const remote = request.socket.remoteAddress?.replace(/^::ffff:/u, '')
-  const host = request.headers.host?.toLowerCase()
-  return (remote === '127.0.0.1' || remote === '::1')
-    && (host?.startsWith('127.') === true || host?.startsWith('localhost:') === true || host?.startsWith('[::1]:') === true)
-    && (request.headers.origin === undefined || request.headers.origin.startsWith('http://127.') || request.headers.origin.startsWith('http://localhost:'))
+  return isLoopbackAdminSource(
+    request.socket.remoteAddress,
+    request.headers.host,
+    request.headers.origin,
+  )
 }
 
 async function readBody(request: Parameters<WebRoute['handler']>[0]): Promise<Record<string, unknown>> {
@@ -47,6 +58,7 @@ async function readBody(request: Parameters<WebRoute['handler']>[0]): Promise<Re
 export async function apply(ctx: Context, config: PluginConfig): Promise<void> {
   const gateway = new LocalGateway(parseConfig(config))
   await gateway.start()
+  ctx.provide('localLinkGateway', Object.freeze({ trustedHosts: gateway.trustedAuthorities() }))
 
   const adminRoute: WebRoute = {
     kind: 'prefix',

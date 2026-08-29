@@ -1,6 +1,6 @@
 {
   "name": "dsh-local-link",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DeepSeek Harness plugin for lightweight LAN access to the current Web UI from phones, tablets, and other computers.",
   "publishConfig": {
     "access": "public"
@@ -23,12 +23,12 @@
     "lib/**/*.d.mts",
     "lib/client.js",
     "lib/client.js.map",
-    "lib/mobile-layout.js",
-    "lib/mobile-layout.js.map",
     "cordis.patch.yml",
     "docs/images/*.jpg",
+    "docs/images/*.png",
     "docs/ARCHITECTURE.md",
     "docs/DIAGNOSTICS.md",
+    "docs/MOBILE_VIEW.md",
     "docs/SECURITY.md",
     "CHANGELOG.md",
     "SECURITY.md",
@@ -42,10 +42,12 @@
     "client": {
       "platform": "web",
       "inject": [
-        "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-slots",
-        "@deepseek-ai/dsh-client-locale"
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-theme",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-session-log-export"
       ],
       "immediately": true
     }
@@ -73,6 +75,8 @@
     "local-network",
     "lan",
     "mobile",
+    "mobile-view",
+    "responsive-ui",
     "wifi",
     "remote-access",
     "web-ui",
@@ -99,10 +103,11 @@
     "@deepseek-ai/dsh-client-connection": "^0.1.1-rc.2",
     "@deepseek-ai/dsh-client-locale": "^0.1.1-rc.2",
     "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.1.1-rc.2",
     "@deepseek-ai/dsh-client-ui-settings": "^0.1.1-rc.2",
     "@deepseek-ai/dsh-client-ui-sidebar": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-layout": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.1-rc.2",
     "@deepseek-ai/dsh-client-ui-theme": "^0.1.1-rc.2",
     "@deepseek-ai/dsh-host-webserver": "^0.1.1-rc.2",
     "@types/node": "^24.3.0",

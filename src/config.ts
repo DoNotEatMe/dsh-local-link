@@ -1,6 +1,7 @@
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { isIP } from 'node:net'
 import z from '@deepseek-ai/schemastery'
+import { isPrivateAddress } from './network.js'
 
 export type AccessMode = 'pairing' | 'trusted-lan'
 
@@ -54,6 +55,9 @@ function boundedInteger(value: unknown, name: string, fallback: number, minimum:
 export function parseConfig(value: PluginConfig): ResolvedConfig {
   const listenHost = value.listenHost ?? '0.0.0.0'
   if (isIP(listenHost) === 0) throw new Error('listenHost must be an IP literal')
+  if (listenHost !== '0.0.0.0' && !isPrivateAddress(listenHost)) {
+    throw new Error('listenHost must be 0.0.0.0 or a private/loopback IP literal')
+  }
 
   const upstreamOrigin = new URL(value.upstreamOrigin ?? 'http://127.0.0.1:3080')
   if (upstreamOrigin.protocol !== 'http:' || upstreamOrigin.hostname !== '127.0.0.1'

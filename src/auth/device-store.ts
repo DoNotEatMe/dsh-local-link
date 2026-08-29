@@ -162,12 +162,13 @@ export class DeviceStore {
 
   private persist(): Promise<void> {
     const snapshot: StoredStateV2 = { version: 2, devices: [...this.devices.values()] }
-    this.writeTail = this.writeTail.then(async () => {
+    const write = this.writeTail.catch(() => undefined).then(async () => {
       await mkdir(dirname(this.file), { recursive: true })
       const temporary = `${this.file}.${process.pid}.tmp`
       await writeFile(temporary, `${JSON.stringify(snapshot, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
       await rename(temporary, this.file)
     })
-    return this.writeTail
+    this.writeTail = write.catch(() => undefined)
+    return write
   }
 }

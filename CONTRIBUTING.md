@@ -18,7 +18,7 @@ Before opening a pull request:
 1. Keep user-visible copy in matching `src/locales/*.json` dictionaries.
 2. Add tests for security-sensitive and version-sensitive behavior.
 3. Explain every new runtime dependency and why Node or Harness cannot provide the capability.
-4. Update architecture, security, or roadmap documentation when a boundary changes.
+4. Update the relevant architecture, security, diagnostics, or Mobile View documentation when a boundary changes.
 5. Run `npm run verify` and report any browser acceptance that could not be performed.
 6. Keep machine paths, device state, credentials, transcripts, and generated caches out of commits.
 7. When adding a diagnostic event, keep it failure-only, use a stable code, update `docs/DIAGNOSTICS.md`, and extend the privacy or retention tests.

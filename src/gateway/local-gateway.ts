@@ -7,7 +7,6 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http'
-import { readFile } from 'node:fs/promises'
 import { connect, type Socket } from 'node:net'
 import { DeviceStore, type DeviceView } from '../auth/device-store.js'
 import { PairingTokens, type PairingStatus } from '../auth/pairing.js'
@@ -18,7 +17,6 @@ import { rewriteAuthenticatedIndex } from './html.js'
 import { PAIR_PAGE, PAIR_PATH } from './pair-page.js'
 
 const COOKIE_NAME = 'dsh_local_link_device'
-const MOBILE_LAYOUT_PATH = '/__dsh-local-link/mobile-layout.js'
 const MAX_PAIR_BODY = 4096
 const EVENT_PATHS = new Set(['/api/events.mux', '/api/events.host'])
 const HOP_BY_HOP_HEADERS = new Set([
@@ -26,10 +24,19 @@ const HOP_BY_HOP_HEADERS = new Set([
   'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade',
 ])
 
+function formatAuthority(address: string, port: number): string {
+  return `${address.includes(':') ? `[${address}]` : address}:${port}`
+}
+
 function cookieValue(request: IncomingMessage, name: string): string | undefined {
   for (const part of (request.headers.cookie ?? '').split(';')) {
     const [key, ...value] = part.trim().split('=')
-    if (key === name) return decodeURIComponent(value.join('='))
+    if (key !== name) continue
+    try {
+      return decodeURIComponent(value.join('='))
+    } catch {
+      return undefined
+    }
   }
   return undefined
 }
@@ -59,18 +66,14 @@ function send(response: ServerResponse, status: number, body: string, type = 'te
   response.end(body)
 }
 
-function proxyRequestHeaders(request: IncomingMessage, upstream: URL, websocket = false): OutgoingHttpHeaders {
+function proxyRequestHeaders(request: IncomingMessage, websocket = false): OutgoingHttpHeaders {
   const headers: OutgoingHttpHeaders = {}
   for (const [name, value] of Object.entries(request.headers)) {
     const lower = name.toLowerCase()
-    if (value === undefined || lower === 'host' || lower === 'cookie'
+    if (value === undefined || lower === 'cookie'
       || lower.startsWith('x-forwarded-') || (!websocket && HOP_BY_HOP_HEADERS.has(lower))) continue
     headers[lower] = value
   }
-  headers.host = upstream.host
-  headers.origin = upstream.origin
-  headers['sec-fetch-site'] = 'same-origin'
-  if (request.headers.referer !== undefined) headers.referer = `${upstream.origin}/`
   return headers
 }
 
@@ -101,13 +104,6 @@ function requestKind(pathname: string): string {
   if (pathname.startsWith('/api/')) return 'api'
   if (/\.[a-z0-9]{1,8}$/iu.test(pathname)) return 'asset'
   return 'page'
-}
-
-export function mobileLayoutRequested(url: URL, userAgent: string | undefined): boolean {
-  const requested = url.searchParams.get('view')
-  if (requested === 'desktop') return false
-  if (requested === 'mobile') return true
-  return /Android|iPad|iPhone|iPod|Mobile|Tablet/iu.test(userAgent ?? '')
 }
 
 export class LocalGateway {
@@ -154,13 +150,17 @@ export class LocalGateway {
     const issued = this.pairing.issue()
     return {
       id: issued.id,
-      url: `http://${address}:${this.config.listenPort}${PAIR_PATH}#token=${encodeURIComponent(issued.token)}${sessionId === undefined ? '' : `&session=${encodeURIComponent(sessionId)}`}`,
+      url: `http://${formatAuthority(address, this.config.listenPort)}${PAIR_PATH}#token=${encodeURIComponent(issued.token)}${sessionId === undefined ? '' : `&session=${encodeURIComponent(sessionId)}`}`,
       expiresAt: issued.expiresAt,
     }
   }
 
   pairingStatus(id: unknown): PairingStatus {
     return this.pairing.getStatus(id)
+  }
+
+  trustedAuthorities(): readonly string[] {
+    return Object.freeze(this.addresses.map(address => formatAuthority(address, this.config.listenPort)))
   }
 
   diagnosticEvents(): readonly DiagnosticEvent[] {
@@ -250,28 +250,12 @@ export class LocalGateway {
       send(response, 401, 'This browser is not paired. Open Local access in the computer sidebar and scan its QR code.')
       return
     }
-    if (url.pathname === MOBILE_LAYOUT_PATH && request.method === 'GET') {
-      try {
-        const body = await readFile(new URL('./mobile-layout.js', import.meta.url))
-        response.writeHead(200, {
-          'content-type': 'text/javascript; charset=utf-8',
-          'content-length': body.byteLength,
-          'cache-control': 'no-store',
-          'x-content-type-options': 'nosniff',
-        })
-        response.end(body)
-      } catch {
-        void this.diagnostics.record('error', 'INDEX_REWRITE_ERROR', { reason: 'mobile_layout_missing' })
-        send(response, 500, 'Mobile layout asset is unavailable')
-      }
-      return
-    }
     const interceptIndex = request.method === 'GET' && url.pathname === '/'
-    this.proxyHttp(request, response, interceptIndex, interceptIndex && mobileLayoutRequested(url, request.headers['user-agent']))
+    this.proxyHttp(request, response, interceptIndex)
   }
 
-  private proxyHttp(request: IncomingMessage, response: ServerResponse, interceptIndex: boolean, mobileLayout: boolean): void {
-    const headers = proxyRequestHeaders(request, this.config.upstreamOrigin)
+  private proxyHttp(request: IncomingMessage, response: ServerResponse, interceptIndex: boolean): void {
+    const headers = proxyRequestHeaders(request)
     if (interceptIndex) headers['accept-encoding'] = 'identity'
     const upstreamRequest = requestHttp({
       hostname: this.config.upstreamOrigin.hostname,
@@ -290,7 +274,7 @@ export class LocalGateway {
       upstreamResponse.on('data', chunk => chunks.push(Buffer.from(chunk)))
       upstreamResponse.on('end', () => {
         try {
-          const body = rewriteAuthenticatedIndex(Buffer.concat(chunks).toString('utf8'), { mobile: mobileLayout })
+          const body = rewriteAuthenticatedIndex(Buffer.concat(chunks).toString('utf8'))
           const outgoing = proxyResponseHeaders(upstreamResponse.headers)
           delete outgoing['content-length']
           delete outgoing['content-encoding']
@@ -342,7 +326,7 @@ export class LocalGateway {
       if (!client.destroyed) client.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n')
     })
     upstream.once('connect', () => {
-      const headers = proxyRequestHeaders(request, this.config.upstreamOrigin, true)
+      const headers = proxyRequestHeaders(request, true)
       upstream.write([
         `${request.method ?? 'GET'} ${request.url ?? '/'} HTTP/1.1`,
         ...serializeHeaders(headers),

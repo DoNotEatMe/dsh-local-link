@@ -15,15 +15,38 @@ The architecture follows six constraints:
 
 ## Components
 
+### Responsibility map
+
+| Module | Single owned boundary |
+| --- | --- |
+| `src/plugin.ts` | Cordis lifecycle and loopback administration routing |
+| `src/gateway/admin-auth.ts` | Structural loopback source, Host, and Origin validation |
+| `src/gateway/local-gateway.ts` | LAN listener and authenticated HTTP/WebSocket transport orchestration |
+| `src/auth/*` | Pairing-token and persisted device-credential state |
+| `src/diagnostics.ts` | Bounded, privacy-filtered failure history |
+| `src/client.tsx` | Desktop Local access/Settings surfaces and client registration |
+| `src/mobile-layout.tsx` | Responsive activation and stock AppFrame composition |
+| `src/mobile-session-info.tsx` | Current-session projection and drawer |
+| `src/mobile-subagents.tsx` | Native subagent catalog projection and sheet |
+| `src/mobile-dialog.ts` | Shared modal focus, keyboard, and focus-restoration lifecycle |
+
+State stores, transport, diagnostics, responsive orchestration, and individual mobile features remain separate. The larger TSX modules are feature compositions plus scoped CSS; they do not own gateway state, duplicate Harness session state, or perform their own transport.
+
 ### Host plugin
 
 `src/plugin.ts` owns lifecycle integration. It starts the gateway, registers a loopback-only administration route on the existing Harness Web server, and closes both registrations with the Cordis effect.
+
+`src/gateway/admin-auth.ts` owns the administration route's source, Host, and Origin boundary. It parses authorities structurally and accepts only actual loopback IP literals or `localhost`; DNS names that merely begin with `127.` or `localhost` fail closed.
 
 ### LAN gateway
 
 `src/gateway/local-gateway.ts` owns the only non-loopback listener. It performs request-boundary validation, pairing, device-cookie authorization, and HTTP/WebSocket proxying.
 
-The gateway changes upstream `Host`, `Origin`, and fetch-site headers to the loopback Harness origin. This is safe only after the gateway has authenticated the device. It lets Harness retain its own loopback request fence rather than configuring the primary server for every LAN address.
+Configuration accepts only the wildcard `0.0.0.0` or an explicit private/loopback listener address. The gateway independently rechecks the request source and exact IP-literal Host authority, so an unsafe public bind cannot be introduced accidentally through configuration.
+
+After authentication, the gateway forwards the browser's original `Host`, `Origin`, referrer, and fetch-site headers to the loopback Harness listener. The Cordis profile patch supplies the gateway's current LAN authorities to the official connection module through its public `trustedHosts` option. Ordinary Harness API and WebSocket traffic can therefore pass the declared origin check without pretending to be loopback.
+
+The connection module separately rechecks privileged configuration, credential, native Host-action, and agent-preset-authoring methods with an empty trust extension. Those operations remain loopback-only. `tests/trust-boundary.test.ts` exercises this split against the real connection package: a trusted gateway authority reaches ordinary dispatch while every privileged method returns `403`.
 
 ### Authentication state
 
@@ -39,7 +62,7 @@ The loopback administration route exposes list, clear, and a narrow allowlisted 
 
 ### Client plugin
 
-`src/client.tsx` registers two normal Harness contributions: a compact desktop `sidebar.footer.action` that shows a QR code and copyable one-time link, and a desktop-only `settings.section` that manages paired devices and the local diagnostic report. It does not replace the root layout or mutate generated CSS-module class names.
+`src/client.tsx` registers two normal Harness contributions: a compact desktop `sidebar.footer.action` that shows a QR code and copyable one-time link, and a desktop-only `settings.section` that manages paired devices and the local diagnostic report. It does not replace the root layout. The desktop surfaces use plugin-owned classes and semantic selectors; version-sensitive stock-DOM hooks are isolated in `src/mobile-layout.tsx` and documented below.
 
 The Harness `sidebar.footer.action` contract is a list, but `0.1.1-rc.2` renders that list as a horizontal flex row while the stock Cordis action reserves `width: 100%` with `flex: none`. Without a compatibility rule, Cordis reduces later actions to zero width. Local Link orders its entry first and changes only the footer container that semantically contains `.dsh-local-link-footer` into a vertical stack. The same scoped rule normalizes the list gap and removes the following action's private top margin so Local access, Cordis, and Settings keep one visual rhythm. The selector is anchored on the plugin-owned class and accounts for the slot renderer's `display: contents` wrapper; it never names a generated Harness class.
 
@@ -47,23 +70,49 @@ The connection card is fixed to the viewport and positioned from the rendered Lo
 
 Harness `0.1.1-rc.2` keeps settings open state and section selection private inside its shell; the public `openSection` callback is only projected to onboarding steps. The popover's `Paired devices` shortcut therefore uses one bounded compatibility bridge: it clicks the semantic settings dialog trigger and then the nav row matching this plugin's own localized section label. The bridge uses no generated class names, mutates no DOM, and can be removed when Harness exposes a general settings-navigation service.
 
-On an authenticated gateway page, the client contributes the trust hint required by the Harness client connection. The proxied index makes the Settings package depend on this contribution so configuration surfaces do not initialize against the unauthenticated page classification.
+The Host plugin exposes the running gateway authorities as a Cordis service. `cordis.patch.yml` merges that service with `webRuntime.trustedHosts` before the stock connection module starts. Trust is therefore declared once on the Host; client code neither mutates `connection.isLoopback` nor carries an authentication marker.
 
 Plain HTTP on a private IP is not a browser secure context, while the stock Harness RPC client calls `crypto.randomUUID()` during connection startup. The rewritten index therefore installs a small RFC 4122 v4 fallback backed by `crypto.getRandomValues()` before the stock boot manifest executes. This avoids certificate installation while keeping the LAN-only setup functional.
 
-### Mobile root layout
+### Responsive Harness AppFrame
 
-`src/mobile-layout.tsx` is selected by the gateway for phone and tablet user agents, with explicit `?view=mobile` and `?view=desktop` overrides for testing and recovery. The gateway changes only the official root-layout boot entry and leaves every other boot registration intact.
+`src/mobile-layout.tsx` is mounted through the normal client plugin and activated by `matchMedia('(max-width: 834px)')`. Crossing the viewport boundary mounts or disposes one scoped set of enhancements. The gateway does not inspect user agents, parse `view` parameters, set layout cookies, load a second bundle, or alter the root-layout boot entry.
 
-The compact shell owns four root surfaces: `sidebar`, `conversation`, `details`, and `shell.overlay`. It deliberately does not enumerate chat, trajectory, composer, dock, node, or third-party view registrations. Those remain children of the stock conversation surface and continue to resolve from their dynamic Harness slots. The layout therefore adapts navigation and panels without defining a second mobile application or duplicating conversation state.
+The shipped Harness root and AppFrame continue to own `sidebar`, `conversation`, `details`, and `shell.overlay`. Local Link contributes only additive overlay, session-information, and subagent surfaces, then applies scoped responsive geometry to the existing frame. It never enumerates Chat, Trajectory, composer, dock, node, or third-party registrations, so those continue to resolve through the native dynamic slots.
 
-The mobile shell provides the normal `layout` controller contract, renders the sidebar and details as dismissible drawers, preserves overlay contributions, applies safe-area insets, and keeps dynamic tab lists horizontally scrollable. The stock desktop layout remains the default for non-mobile clients and the immediate fallback through `?view=desktop`.
+The existing `layout` controller opens and closes the stock sidebar. Responsive styles project that sidebar and the plugin's details surface as dismissible drawers, preserve overlay contributions, apply safe-area insets, and keep dynamic tab lists horizontally scrollable. At wider viewports the enhancement fiber is disposed and the untouched desktop presentation remains.
+
+Plugin-owned modal drawers share `src/mobile-dialog.ts`: opening moves focus into the surface, Tab and Shift+Tab remain inside it, Escape closes it, and closing restores focus to the invoking Harness control. This behavior is isolated from session and gateway state.
+
+The stock Settings dialog is intentionally not exposed inside the narrow mobile drawer. The responsive enhancement shadows the official single `sidebar.settings` occupant with one compact sun/moon button. Its icon and accessible label describe the next action. It reads the resolved `ctx.theme.getTheme().active.colorScheme`, so a `system` preference follows the operating-system theme on first render, subscribes to the normal `theme/change` event, and writes an explicit choice only through `ctx.theme.setTheme('light' | 'dark')`.
+
+The compact appearance button is visually placed in the stock sidebar brand row without becoming part of the Harness brand action. A scoped mobile geometry rule changes the stock flexible brand button to a content-sized hit area and leaves the remaining row space to the separate appearance and sidebar-toggle controls. This keeps all three hit areas disjoint while preserving Harness's own buttons, actions, focus behavior, and tap highlight. Harness exposes no sibling slot in this row, so the compatibility rule identifies the stock CSS-module button by its semantic `_brand` class suffix; Harness upgrades must verify that hook.
+
+Theme persistence remains entirely owned by Harness SettingsScope. In Harness `0.1.1-rc.2`, the client Settings binder selects durable `host` storage only for loopback connections and `memory` storage for non-loopback connections. A phone can therefore change the theme for its current page, but reload creates a new remote SettingsScope and returns to the durable host preference—often `system`, which is then resolved using the phone's own color scheme. Local Link does not impersonate a loopback client and does not add a competing cookie or browser-storage preference. Persistent per-device theme selection requires a safe client/device preference scope from Harness.
+
+The authenticated gateway manifest omits Harness's host directory-picker client capability. The stock WorkspaceBrowser already treats `sidebar.workspaces.directoryFlow` as optional, so it naturally keeps Search, View options, existing workspaces, and sessions while withholding `Add workspace` from every remote gateway viewport. Loopback desktop boot entries are unchanged; no DOM selector or duplicated workspace browser is involved.
+
+Subagent controls also stay inside the native graph. A mobile-only list entry in `conversation.input.dock` projects the existing `useSessions` catalog into a compact status chip above the composer. The sheet itself is an additive `shell.overlay` entry, while a higher-priority mobile occupant of `conversation.session.header.lineage` removes the desktop dropdown without replacing the session header. Opening and expanding the sheet uses `ctx.sessions.setSubagentCatalogOpen`; selecting a row uses `ctx.sessions.openSubagent`. Closing the sheet or a tree branch releases every corresponding catalog observation. There is no second session store, WebSocket, or data-polling loop. While the sheet is visible, one one-second presentation clock updates displayed activity durations from the already-observed catalog and is cleared when the sheet closes.
 
 ### Localization
 
 JSON dictionaries under `src/locales/` are registered with Harness `LocaleRuntime`. The slot declares its locale namespace and receives the framework translation function. The application locale remains the single source of truth.
 
-English and Chinese dictionaries intentionally contain the same key set. `tests/locales.test.ts` makes this a release invariant. Adding a language means adding one matching dictionary and registering that locale ID in `src/client.tsx`; component code remains unchanged.
+The automatic pairing page runs before the Harness client and locale service load. Its small copy subset is sourced from those same JSON dictionaries at build time and selects English or Chinese from `navigator.languages`; it has no separate translation files or network request.
+
+### Design-system boundary
+
+Local Link uses Harness semantic color, state, border, background, elevation, and typography variables wherever the supported client exports an applicable token. Icons are imported from `@deepseek-ai/dsh-client-ui-primitives` when that package exposes the required glyph, and stock Harness menus, dialogs, conversation actions, Settings surfaces, and session operations that Local Link does not replace remain their native components. Literal colors following a `var(--dsw-*, fallback)` expression are defensive fallbacks and are not selected in the supported Harness build. The context breakdown's purple tools segment intentionally matches the stock Harness `ContextMeter` implementation exactly.
+
+Harness `0.1.1-rc.2` does not expose a public responsive-shell or Drawer component, spacing scale, radius scale, or mobile component recipes. Mobile geometry—safe-area placement, drawer widths, tap-target dimensions, spacing, radii, and transition timing—therefore remains plugin-owned CSS. One plugin-scoped `--dllm-side-drawer-width` value keeps the stock sidebar projection, the right details surface, and Current session visually identical instead of duplicating width literals. A small set of concepts also has no exported Harness primitive: Local access/device, navigation, current-session information, permission variants, and the subagent group glyph. The compact feedback-note affordance is a scoped presentation adapter because the stock feedback action accepts text only and exposes no icon-mode contract.
+
+All plugin-owned button and text-input controls use the exported Harness `Button` and `Input` primitives. Their semantic variants (`primary`, `outline`, `ghost`, and `toolbar`) remain owned by Harness; Local Link adds only the geometry required by its composed surfaces, such as a full-width sidebar row, a segmented copy action, a scrim, or a tree row. A source-level test rejects new raw `<button>` and `<input>` elements in the plugin UI.
+
+Component-level alignment remains bounded by the contracts Harness actually exports. The responsive shell, side drawer, bottom sheet, QR composition, context card, and diagnostics disclosure have no equivalent public responsive component contract in `0.1.1-rc.2`, so their structure remains semantic HTML plus scoped CSS. They use Harness tokens and primitive controls internally and should migrate if Harness later publishes compatible responsive components.
+
+These are compatibility surfaces, not an independent theme. Every Harness upgrade must compare them against the current token vocabulary, primitive icon catalog, slot contracts, and stock mobile behavior. They should be deleted in favor of upstream tokens or components as soon as equivalent public contracts exist.
+
+English and Chinese dictionaries intentionally contain the same key set. `tests/locales.test.ts` makes this a release invariant. Adding a language means adding one matching dictionary, registering that locale ID in `src/client.tsx`, and mapping its small pre-client subset in `src/gateway/pair-page.ts`; feature component code remains unchanged.
 
 ## Stable UI contract
 
@@ -121,16 +170,19 @@ No service discovery, certificate generator, tunnel client, native application, 
 
 ## Compatibility strategy
 
-The plugin targets DeepSeek Harness `0.1.1-rc.2`. Most integration uses declared package contracts, but three adapters are intentionally version-sensitive:
+The plugin targets DeepSeek Harness `0.1.1-rc.2`. Most integration uses declared package contracts, but several adapters are intentionally version-sensitive:
 
 | Adapter | Why it exists | Failure behavior | Removal condition |
 | --- | --- | --- | --- |
-| Boot-manifest dependency adjustment | Authenticated non-loopback pages must load the Local Link trust hint before Settings initializes. | Fails closed when the expected plugin or Settings entry is absent. | Harness exposes a supported authenticated-gateway boot contract. |
-| Mobile root-layout substitution | Harness has no usable compact shell in the supported release, while its conversation contents are already slot-driven. | Fails closed if the unique official layout entry or required dependencies are absent; `?view=desktop` keeps the stock shell. | Harness ships a supported responsive root layout. |
+| Connection `trustedHosts` profile patch | Authenticated non-loopback pages need an explicitly declared LAN authority for ordinary API and WebSocket traffic. | An undeclared authority is rejected; privileged RPCs remain loopback-only independently. | Harness exposes a first-class authenticated-gateway registration contract. |
+| Remote boot capability filter | The native directory picker targets the Host filesystem and is misleading from a remote browser. | If the known picker entries change, `Add workspace` can reappear; server authorization remains unchanged. | Harness exposes a remote-client capability policy. |
 | Settings navigation bridge | The shell keeps `openSection` private outside onboarding. | The shortcut does nothing; ordinary `Settings → Local access` remains available. | Harness exposes general settings navigation. |
 | Footer stack rule | Cordis reserves a full-width cell inside a horizontal list container. | Without it, Local access has zero width while Cordis is mounted. | Harness stacks full-width footer actions or gives entries an explicit layout contract. |
+| Remote theme persistence | Harness `0.1.1-rc.2` gives non-loopback clients a memory-backed SettingsScope. | An explicit mobile light/dark choice resets on reload to the host preference, commonly `system`. | Harness exposes a safe per-client or per-device preference scope. |
+| Responsive AppFrame adapter | Harness exposes its root, layout controller, semantic tokens, and button/input primitives, but no public responsive-shell recipe, spacing/radius scale, several required glyphs, or icon mode for the feedback note action. | Token, component, or stock DOM/action changes can degrade mobile presentation while business operations remain intact. | Harness publishes responsive contracts and glyphs for the remaining plugin-owned surfaces. |
+| Mobile stock-DOM touch adapters | Harness has no touch-visible contract for session/workspace overflow actions, a separately slotted brand-row action, or compact feedback-note mode. | A CSS-module or stock DOM change can hide an action or enlarge its hit area while the underlying Harness operation remains available. | Harness exposes mobile action visibility and brand-row/feedback extension contracts. |
 
-The manifest transformation has direct tests. The two presentation adapters are verified during browser acceptance against the supported Harness build; release screenshots are also taken from that real composition with Cordis mounted.
+The manifest transformation and scoped adapter invariants have source-level tests. Presentation behavior is verified during browser acceptance against the supported Harness build. Release screenshots come from the live composition with private workspace and conversation content excluded from the frame. Screenshots do not replace live pairing and real-device checks.
 
 ## Known pressure points
 
@@ -138,8 +190,9 @@ The manifest transformation has direct tests. The two presentation adapters are 
 - **Socket revocation:** the credential is checked before an upgrade; an already-upgraded socket survives until it disconnects or Harness restarts.
 - **Browser metadata:** category and browser are coarse display hints supplied during pairing, not trusted identity. Laptop versus desktop is intentionally reported as `Computer`.
 - **Interface selection:** the first private IPv4 address is used in invitations. Multi-interface selection is not exposed yet.
-- **Harness upgrades:** boot graph names, shell semantics, or client connection assumptions may change even when TypeScript package contracts still compile.
-- **Mobile acceptance:** the compact shell preserves dynamic slots by construction, but virtual keyboards, orientation changes, and third-party conversation views still require real-device checks.
+- **Harness upgrades:** directory-picker boot IDs, AppFrame DOM semantics, or connection contracts may change even when TypeScript package contracts still compile.
+- **Mobile acceptance:** the responsive AppFrame enhancement preserves dynamic slots by construction, but virtual keyboards, orientation changes, and third-party conversation views still require real-device checks.
+- **Design-system drift:** plugin-owned mobile geometry, responsive compositions without exported equivalents, and the few concepts without primitive icons must be visually compared with every supported Harness release.
 - **Process lifecycle:** Host-side updates require a Harness restart. Client artifacts may be read from disk on reload, which can temporarily create a mixed-version UI; compatibility normalization prevents old device records from rendering blank.
 
 These are documented constraints, not hidden fallback modes. Release readiness requires the automated gate plus a real browser check of pairing, live conversation streaming, Cordis coexistence, settings navigation, rename, and revoke.

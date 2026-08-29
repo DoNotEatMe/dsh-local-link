@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -33,5 +33,18 @@ describe('DeviceStore', () => {
     const store = new DeviceStore(file, 86_400_000)
     await store.load()
     expect(store.list()).toEqual([{ id: 'legacy', name: 'My device', deviceType: 'Phone', browser: 'Browser', createdAt: now, lastSeenAt: now }])
+  })
+
+  it('recovers the persistence queue after a temporary filesystem failure', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-local-link-'))
+    roots.push(root)
+    const file = join(root, 'devices.json')
+    await mkdir(file)
+    const store = new DeviceStore(file, 86_400_000)
+    await expect(store.add({ type: 'Phone', browser: 'Chrome' })).rejects.toBeDefined()
+
+    await rm(file, { recursive: true, force: true })
+    await store.add({ type: 'Computer', browser: 'Edge' })
+    expect(JSON.parse(await readFile(file, 'utf8'))).toMatchObject({ version: 2 })
   })
 })

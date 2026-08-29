@@ -64,6 +64,9 @@ describe('LocalGateway', () => {
     const origin = `http://127.0.0.1:${gatewayPort}`
 
     expect((await fetch(origin)).status).toBe(401)
+    expect((await fetch(origin, {
+      headers: { cookie: 'dsh_local_link_device=%E0%A4%A' },
+    })).status).toBe(401)
     const targetedPairing = gateway.issuePairing('session-123')
     const targetedHash = new URLSearchParams(new URL(targetedPairing.url).hash.slice(1))
     expect(targetedHash.get('session')).toBe('session-123')
@@ -110,23 +113,24 @@ describe('LocalGateway', () => {
     })
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
-    expect(await response.text()).toContain('__DSH_LOCAL_LINK_AUTHENTICATED__')
-    expect(observedHeaders?.host).toBe(`127.0.0.1:${upstreamPort}`)
-    expect(observedHeaders?.origin).toBe(`http://127.0.0.1:${upstreamPort}`)
-    expect(observedHeaders?.referer).toBe(`http://127.0.0.1:${upstreamPort}/`)
-    expect(observedHeaders?.['sec-fetch-site']).toBe('same-origin')
+    expect(await response.text()).toContain('window.crypto.getRandomValues')
+    expect(observedHeaders?.host).toBe(`127.0.0.1:${gatewayPort}`)
+    expect(observedHeaders?.origin).toBe(origin)
+    expect(observedHeaders?.referer).toBe(`${origin}/session/test`)
+    expect(observedHeaders?.['sec-fetch-site']).toBe('cross-site')
     expect(observedHeaders?.cookie).toBeUndefined()
+    expect(gateway.trustedAuthorities()).toEqual([`127.0.0.1:${gatewayPort}`])
 
-    const mobileResponse = await fetch(origin, {
+    const narrowClientResponse = await fetch(`${origin}/?view=mobile`, {
       headers: {
         cookie: cookie ?? '',
         'user-agent': 'Mozilla/5.0 (Linux; Android 14) Chrome/128 Mobile',
       },
     })
-    const mobileHtml = await mobileResponse.text()
-    expect(mobileResponse.status).toBe(200)
-    expect(mobileHtml).toContain('window.__DSH_LOCAL_LINK_MOBILE__=true')
-    expect(mobileHtml).toContain('"url":"/__dsh-local-link/mobile-layout.js"')
+    const narrowClientHtml = await narrowClientResponse.text()
+    expect(narrowClientResponse.status).toBe(200)
+    expect(narrowClientHtml).not.toContain('__DSH_LOCAL_LINK_MOBILE__')
+    expect(narrowClientHtml).toContain('"url":"/plugins/layout.js"')
 
     const desktopResponse = await fetch(`${origin}/?view=desktop`, {
       headers: {

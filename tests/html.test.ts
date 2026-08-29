@@ -8,15 +8,17 @@ function index(entries: unknown[]): string {
 }
 
 describe('rewriteAuthenticatedIndex', () => {
-  it('adds the LAN crypto fallback, trust marker, and Settings ordering', () => {
+  it('adds only the LAN crypto fallback and responsive viewport around the stock boot graph', () => {
     const result = rewriteAuthenticatedIndex(index([
       { id: 'dsh-local-link', inject: [] },
       { id: '@deepseek-ai/dsh-client-ui-settings', inject: ['connection'] },
     ]))
     expect(result).toContain('window.crypto.getRandomValues')
     expect(result.indexOf('window.crypto.getRandomValues')).toBeLessThan(result.indexOf('window.__DSH_BOOT__'))
-    expect(result).toContain('window.__DSH_LOCAL_LINK_AUTHENTICATED__=true')
-    expect(result).toContain('"inject":["connection","dsh-local-link"]')
+    expect(result).toContain('viewport-fit=cover')
+    expect(result).not.toContain('dsh_local_link_view')
+    expect(result).not.toContain('__DSH_LOCAL_LINK_AUTHENTICATED__')
+    expect(result).toContain('"inject":["connection"]')
   })
 
   it('fails closed when the client plugin is missing', () => {
@@ -29,7 +31,7 @@ describe('rewriteAuthenticatedIndex', () => {
     expect(rewriteAuthenticatedIndex('<html>plain</html>')).toBe('<html>plain</html>')
   })
 
-  it('replaces only the root layout bundle for a mobile surface', () => {
+  it('keeps the stock root and third-party views while removing remote Host directory pickers', () => {
     const result = rewriteAuthenticatedIndex(index([
       { id: 'dsh-local-link', url: '/plugins/local-link.js', rev: 'local-link', inject: [] },
       { id: '@deepseek-ai/dsh-client-ui-settings', url: '/plugins/settings.js', rev: 'settings', inject: ['connection'] },
@@ -39,22 +41,35 @@ describe('rewriteAuthenticatedIndex', () => {
         rev: 'stock-layout',
         inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-theme'],
       },
+      { id: '@deepseek-ai/dsh-client-ui-directory-picker-native', url: '/plugins/native-picker.js', rev: 'native-picker' },
+      { id: '@deepseek-ai/dsh-client-ui-directory-picker-browse', url: '/plugins/browser-picker.js', rev: 'browser-picker' },
       { id: 'third-party-view', url: '/plugins/view.js', rev: 'view', inject: ['@deepseek-ai/dsh-client-ui-conversation'] },
-    ]), { mobile: true })
-    expect(result).toContain('window.__DSH_LOCAL_LINK_MOBILE__=true')
+    ]))
     expect(result).toContain('viewport-fit=cover')
-    expect(result).toContain('"url":"/__dsh-local-link/mobile-layout.js"')
-    expect(result).toContain('"rev":"dsh-local-link-mobile-layout-v1"')
-    expect(result).toContain('"inject":["@deepseek-ai/dsh-client-runtime","@deepseek-ai/dsh-client-ui-theme","dsh-local-link"]')
+    expect(result).toContain('"id":"@deepseek-ai/dsh-client-ui-layout","url":"/plugins/layout.js","rev":"stock-layout"')
+    expect(result).not.toContain('/__dsh-local-link/mobile-layout.js')
+    expect(result).not.toContain('__DSH_LOCAL_LINK_MOBILE__')
+    expect(result).not.toContain('@deepseek-ai/dsh-client-ui-directory-picker-native')
+    expect(result).not.toContain('@deepseek-ai/dsh-client-ui-directory-picker-browse')
     expect(result).toContain('"id":"third-party-view","url":"/plugins/view.js","rev":"view"')
   })
 
-  it('fails closed when the mobile layout contract is incompatible', () => {
-    expect(() => rewriteAuthenticatedIndex(index([
+  it('removes Host directory pickers from every authenticated gateway page', () => {
+    const result = rewriteAuthenticatedIndex(index([
+      { id: 'dsh-local-link', inject: [] },
+      { id: '@deepseek-ai/dsh-client-ui-settings', inject: ['connection'] },
+      { id: '@deepseek-ai/dsh-client-ui-directory-picker-native', url: '/plugins/native-picker.js', rev: 'native-picker' },
+    ]))
+    expect(result).not.toContain('@deepseek-ai/dsh-client-ui-directory-picker-native')
+  })
+
+  it('does not inspect or replace the shipped layout contract', () => {
+    const result = rewriteAuthenticatedIndex(index([
       { id: 'dsh-local-link', inject: [] },
       { id: '@deepseek-ai/dsh-client-ui-settings', inject: ['connection'] },
       { id: '@deepseek-ai/dsh-client-ui-layout', url: '/layout.js', rev: 'layout', inject: [] },
-    ]), { mobile: true })).toThrow(/layout boot entry is incompatible/u)
+    ]))
+    expect(result).toContain('"id":"@deepseek-ai/dsh-client-ui-layout","url":"/layout.js","rev":"layout","inject":[]')
   })
 })
 
@@ -75,6 +90,7 @@ describe('automatic connection page', () => {
   it('still pairs and redirects when History API cleanup is unavailable', async () => {
     const script = PAIR_PAGE.match(/<script>([\s\S]+)<\/script>/u)?.[1]
     expect(script).toBeTruthy()
+    const message = { textContent: '' }
     const output = { textContent: '' }
     let redirected = ''
     let stored = ''
@@ -90,7 +106,9 @@ describe('automatic connection page', () => {
     }
     runInNewContext(script ?? '', {
       document: {
-        getElementById: () => output,
+        documentElement: { lang: '' },
+        title: '',
+        getElementById: (id: string) => id === 'status' ? output : message,
         querySelector: () => ({ remove: () => undefined }),
       },
       location: {
@@ -99,7 +117,7 @@ describe('automatic connection page', () => {
         replace: (value: string) => { redirected = value },
       },
       history: { replaceState: () => { throw new Error('unavailable') } },
-      navigator: { userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/128 Mobile' },
+      navigator: { languages: ['en-US'], userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/128 Mobile' },
       localStorage: { setItem: (_key: string, value: string) => { stored = value } },
       XMLHttpRequest: SuccessfulRequest,
       URLSearchParams,
@@ -110,5 +128,28 @@ describe('automatic connection page', () => {
       stored: expect.stringContaining('session-123'),
       status: '',
     })
+  })
+
+  it('uses the connecting browser language before Harness locale services load', async () => {
+    const script = PAIR_PAGE.match(/<script>([\s\S]+)<\/script>/u)?.[1]
+    const message = { textContent: '' }
+    const output = { textContent: '' }
+    const documentElement = { lang: '' }
+    runInNewContext(script ?? '', {
+      document: {
+        documentElement,
+        title: '',
+        getElementById: (id: string) => id === 'status' ? output : message,
+        querySelector: () => ({ remove: () => undefined }),
+      },
+      location: { hash: '', pathname: '/__dsh-local-link/pair' },
+      history: { replaceState: () => undefined },
+      navigator: { languages: ['zh-CN'], userAgent: 'Mozilla/5.0' },
+      URLSearchParams,
+    })
+    await new Promise(resolve => setImmediate(resolve))
+    expect(documentElement.lang).toBe('zh')
+    expect(message.textContent).toBe('正在连接此设备…')
+    expect(output.textContent).toBe('此连接链接不完整。')
   })
 })

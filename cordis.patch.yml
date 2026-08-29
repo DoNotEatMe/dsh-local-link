@@ -1,5 +1,12 @@
 # Adds one Host gateway and one Web client settings page without replacing any
-# stock DeepSeek Harness module.
+# stock DeepSeek Harness module. The stock connection receives the gateway's
+# LAN authorities through its public trustedHosts contract. Harness still keeps
+# settings, credentials, native Host actions, and preset authoring loopback-only.
+- id: connection
+  inject: [webRuntime, localLinkGateway]
+  config:
+    trustedHosts: !!js [...ctx.webRuntime.trustedHosts, ...ctx.localLinkGateway.trustedHosts]
+
 - insert:
     - id: dsh-local-link
       name: dsh-local-link

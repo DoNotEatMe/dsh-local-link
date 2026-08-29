@@ -27,7 +27,7 @@ The QR popover separately checks every two seconds whether its visible one-time 
 - Repeated identical events inside a five-second burst are stored once.
 - Opening `Settings → Local access` reads the report once. `Refresh` is the only repeated UI read.
 - The file is written only for a retained failure, an explicit clear, or migration away from unreadable/obsolete entries.
-- Writes use an atomic temporary-file replacement and fail soft; diagnostics cannot take down pairing or proxy traffic.
+- Background event writes use an atomic temporary-file replacement and fail soft; diagnostics cannot take down pairing or proxy traffic. The explicit `Clear` action reports a persistence failure instead of claiming that the on-disk report was removed.
 
 Set `diagnosticsEnabled: false` to stop retaining new events. `Clear` immediately removes the retained history.
 

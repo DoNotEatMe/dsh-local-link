@@ -11,9 +11,12 @@
 
 A connected Harness browser may read project data, submit prompts, approve actions, and trigger commands. A gateway credential therefore grants powerful access to the current Harness instance.
 
+Mobile View does not reduce that authority. It inherits the selected Harness session's Read only, Workspace write, or Full access mode. Omitting the remote `Add workspace` directory picker is a usability constraint, not an authorization boundary.
+
 ## Implemented controls
 
 - Source-address classification for loopback, RFC1918 IPv4, link-local IPv4, IPv6 ULA, and IPv6 link-local ranges.
+- Startup rejection for listener addresses outside `0.0.0.0`, private ranges, and loopback ranges.
 - IP-literal Host allowlist derived from current private interfaces.
 - One-use, expiring pairing tokens.
 - 256-bit device credentials.
@@ -22,6 +25,9 @@ A connected Harness browser may read project data, submit prompts, approve actio
 - Device expiry and explicit revocation.
 - Authentication before HTTP proxying and WebSocket upgrade.
 - Gateway-side block for desktop administration paths.
+- Structural loopback source, Host, and Origin validation for every desktop administration request; lookalike DNS names fail closed.
+- Gateway authorities declared through the stock connection `trustedHosts` contract without claiming loopback identity.
+- Independent loopback enforcement for Settings, credentials, native Host actions, and agent-preset authoring.
 - Bounded local diagnostics with an explicit context allowlist and no credentials, addresses, identifiers, names, paths, or user content.
 - No external relay, telemetry, analytics, or remote log collector.
 
@@ -43,7 +49,7 @@ Revoking a device blocks subsequent requests and reconnects, but an already-upgr
 
 ### Version-sensitive Harness integration
 
-Authenticated LAN boot, direct Settings navigation, and coexistence with the stock Cordis footer action currently need small compatibility adapters for Harness `0.1.1-rc.2`. They do not expand network authority, but a Harness upgrade can break presentation or fail closed. Before declaring another Harness version supported, manually retest pairing, live conversation streaming, Settings navigation, rename, revoke, and coexistence with Cordis.
+Authenticated LAN trust, remote boot capability filtering, direct Settings navigation, coexistence with the stock Cordis footer action, and responsive AppFrame presentation currently need small compatibility adapters for Harness `0.1.1-rc.2`. They do not grant privileged loopback methods, but a Harness upgrade can break presentation or fail closed. Before declaring another Harness version supported, rerun the trust-boundary suite and manually retest pairing, live conversation streaming, Settings navigation, rename, revoke, Cordis coexistence, mobile workspace/session actions, Current session, subagents, theme switching, and third-party conversation tabs.
 
 ### Firewall automation
 
@@ -58,6 +64,7 @@ Pairing establishes device possession, not user identity. Anyone controlling a p
 - Internet exposure.
 - Multi-user accounts or workspace isolation.
 - Authorization inside a Harness session.
+- A lower-authority mobile mode distinct from the selected Harness session.
 - Protection against malware already executing as the desktop user.
 - A replacement for TLS, VPN access control, or operating-system firewall policy.
 

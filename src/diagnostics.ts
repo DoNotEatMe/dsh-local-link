@@ -104,7 +104,7 @@ export class DiagnosticStore {
         return event === undefined ? [] : [event]
       })
       this.events = normalized.slice(-this.maxEntries)
-      if (this.events.length !== parsed.events.length) await this.persist()
+      if (this.events.length !== parsed.events.length) await this.persist().catch(() => undefined)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
       this.events = []
@@ -134,7 +134,7 @@ export class DiagnosticStore {
     }
     this.events.push(event)
     if (this.events.length > this.maxEntries) this.events.splice(0, this.events.length - this.maxEntries)
-    return this.persist()
+    return this.persist().catch(() => undefined)
   }
 
   async clear(): Promise<void> {
@@ -144,12 +144,13 @@ export class DiagnosticStore {
 
   private persist(): Promise<void> {
     const snapshot: StoredDiagnostics = { version: 1, events: [...this.events] }
-    this.writeTail = this.writeTail.catch(() => undefined).then(async () => {
+    const write = this.writeTail.catch(() => undefined).then(async () => {
       await mkdir(dirname(this.file), { recursive: true })
       const temporary = `${this.file}.${process.pid}.tmp`
       await writeFile(temporary, `${JSON.stringify(snapshot, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
       await rename(temporary, this.file)
-    }).catch(() => undefined)
-    return this.writeTail
+    })
+    this.writeTail = write.catch(() => undefined)
+    return write
   }
 }
