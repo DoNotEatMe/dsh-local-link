@@ -2,7 +2,12 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 1.0.0 — 2026-08-29
+
+The first stable Local Link release. It keeps the focused same-LAN access and
+responsive Harness-client scope established by the `0.2.x` previews, with an
+exact compatibility matrix covering the current verified Harness release and
+prerelease targets.
 
 ### Fixed
 
@@ -13,6 +18,7 @@ All notable changes to this project are documented here.
 ### Validated
 
 - Verified pairing, current-session opening, live conversation streaming, responsive navigation, Current session, and subagent surfaces in an isolated checkout of DeepSeek Harness `0.1.2-alpha.1`.
+- Reverified Local Access, one-use QR regeneration, and responsive navigation against DeepSeek Harness `0.1.1-rc.2`, `0.1.1-rc.1`, and `0.1.0-rc.8` using the same release source.
 
 ## 0.2.1 — 2026-08-29
 

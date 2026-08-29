@@ -6,13 +6,12 @@ versions and is never inferred from package installation alone.
 
 ## Compatibility matrix
 
-Last checked on 2026-08-29 with Node.js 22 and Windows. Release candidates
-were verified with `dsh-local-link@0.2.1`; the alpha was verified with the
-current development checkout. Versions are listed newest first.
+Last checked on 2026-08-29 with Node.js 22 and Windows using the
+`dsh-local-link@1.0.0` release source. Versions are listed newest first.
 
 | DeepSeek Harness | Status | Last checked |
 | --- | --- | --- |
-| `0.1.2-alpha.1` | **Verified in development** | 2026-08-29 |
+| `0.1.2-alpha.1` | **Supported prerelease** | 2026-08-29 |
 | `0.1.1-rc.2` | **Supported baseline** | 2026-08-29 |
 | `0.1.1-rc.1` | **Verified** | 2026-08-29 |
 | `0.1.0-rc.8` | **Verified** | 2026-08-29 |
@@ -23,14 +22,14 @@ Versions older than `0.1.0-rc.8` are untested and unsupported.
 
 - **Supported baseline** is the Harness version used for current development
   and the complete repository verification gate.
+- **Supported prerelease** is an exact Harness prerelease included in the
+  release gate without implying compatibility with later alpha builds.
 - **Verified** means the published plugin was installed and its core LAN,
   pairing, session, and responsive surfaces were checked on that version.
-- **Verified in development** means the current checkout passed the same core
-  checks, but the compatibility fix is not part of the published npm release yet.
 - **Untested** means no compatibility claim is made.
 
-`0.1.2-alpha.1` will become a supported prerelease target with the next Local
-Link release. Every newer Harness alpha still requires an independent check.
+Every newer Harness alpha still requires an independent check; support for
+`0.1.2-alpha.1` does not imply support for the moving alpha branch.
 
 ## Verification policy
 

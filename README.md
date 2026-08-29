@@ -9,9 +9,9 @@ Lightweight, self-hosted [DeepSeek Harness](https://github.com/deepseek-ai/deeps
 
 Open `Local access`, scan one QR code, and continue the desktop's currently selected Harness session from a phone, tablet, or another computer on the same private network. There is no hosted relay, tunnel provider, native application, account, replacement chat UI, or second workspace picker.
 
-The `0.2.x` release line also addresses the stock Web client's desktop-first behavior on narrow touch screens. It reorganizes the existing Harness interface into responsive drawers, compact session controls, and touch-friendly actions while keeping the same client, session, plugin slots, permissions, and live agent stream.
+The stable `1.0.0` release also addresses the stock Web client's desktop-first behavior on narrow touch screens. It reorganizes the existing Harness interface into responsive drawers, compact session controls, and touch-friendly actions while keeping the same client, session, plugin slots, permissions, and live agent stream.
 
-> **Preview security boundary:** the gateway uses plain HTTP and is intended only for a trusted private network. Do not expose its port to the internet or use it on public Wi-Fi.
+> **Security boundary:** the gateway uses plain HTTP and is intended only for a trusted private network. Do not expose its port to the internet or use it on public Wi-Fi.
 
 ## Focused product scope
 
@@ -67,7 +67,7 @@ Compatibility is checked against exact DeepSeek Harness versions, including the 
 
 | DeepSeek Harness | Local Link status | Notes |
 | --- | --- | --- |
-| `0.1.2-alpha.1` | **Verified in development** | Current `main` includes the native browser-authentication and stream compatibility required by this alpha. |
+| `0.1.2-alpha.1` | **Supported prerelease** | `1.0.0` includes the native browser-authentication and stream compatibility required by this alpha. |
 | `0.1.1-rc.2` | **Supported baseline** | Primary development and complete repository verification target. |
 | `0.1.1-rc.1` | **Verified** | Core LAN, pairing, session, and Mobile View surfaces checked. |
 | `0.1.0-rc.8` | **Verified** | Core LAN, pairing, session, and Mobile View surfaces checked. |
@@ -95,7 +95,7 @@ Phone and tablet browsers automatically receive Mobile View when the viewport is
 
 The stock Harness Web interface is difficult to operate on a phone: persistent desktop navigation consumes the viewport, session controls compete with the conversation title, several actions depend on hover or long press, and subagent information is too dense for a narrow screen. Mobile View makes that existing interface usable without introducing a second client or duplicating Harness business logic.
 
-| Stock narrow-screen behavior | Mobile View in `0.2.x` |
+| Stock narrow-screen behavior | Mobile View in `1.0.0` |
 | --- | --- |
 | Desktop navigation competes with the conversation | Workspace and session navigation opens as a dismissible left drawer |
 | Session metadata crowds the header | Context, model, access, preset, activity, and export move into a compact right drawer |
