@@ -4,13 +4,35 @@
 [![npm](https://img.shields.io/npm/v/dsh-local-link.svg)](https://www.npmjs.com/package/dsh-local-link)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Lightweight, self-hosted [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin for paired LAN access and a practical Mobile View of the complete DSH Web interface.
+Lightweight, self-hosted [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin for paired LAN access and a practical Mobile View of the existing DSH Web client.
 
 Open `Local access`, scan one QR code, and continue the desktop's currently selected Harness session from a phone, tablet, or another computer on the same private network. There is no hosted relay, tunnel provider, native application, account, replacement chat UI, or second workspace picker.
 
-Version `0.2.0` also addresses the stock Web client's desktop-first behavior on narrow touch screens. It reorganizes the existing Harness interface into responsive drawers, compact session controls, and touch-friendly actions while keeping the same client, session, plugin slots, permissions, and live agent stream.
+The `0.2.x` release line also addresses the stock Web client's desktop-first behavior on narrow touch screens. It reorganizes the existing Harness interface into responsive drawers, compact session controls, and touch-friendly actions while keeping the same client, session, plugin slots, permissions, and live agent stream.
 
 > **Preview security boundary:** the gateway uses plain HTTP and is intended only for a trusted private network. Do not expose its port to the internet or use it on public Wi-Fi.
+
+## Focused product scope
+
+Local Link is intentionally a small LAN companion for the existing Harness Web client, not a general remote-access platform. Its purpose is to make one path dependable: open the Harness instance already running on a computer from another trusted device on the same private network, then use the same sessions and interface in a browser.
+
+Development stays focused on:
+
+- reliable same-LAN browser access to the current Harness Host;
+- short-lived invitations and understandable paired-device lifecycle controls;
+- responsive presentation of the stock client without duplicating Harness business logic;
+- compatibility with registered Harness views, slots, permissions, themes, and session state;
+- accessibility, localization, bounded diagnostics, and security hardening inside that boundary.
+
+The following are deliberate non-goals:
+
+- public-internet exposure, hosted relays, managed tunnels, or cloud accounts;
+- a separate native phone or desktop application;
+- a replacement chat client or fork of the Harness interface;
+- independent workspace, file, or session synchronization outside Harness;
+- a general-purpose remote extension runtime unrelated to opening the current Web UI.
+
+This does not mean the plugin is finished or frozen. It means future changes should make the local browser path simpler, safer, more compatible, or easier to diagnose instead of widening the product into a different class of system.
 
 ## Install
 
@@ -45,7 +67,7 @@ The profile points at the checkout, so rebuild after changing client code and re
 1. Open the session you want on the computer.
 2. Click `Local access` at the bottom of the Harness sidebar.
 3. Scan the QR code or copy the one-time link to another device on the same network.
-4. The first browser to use the invitation opens the full Harness UI at the selected session.
+4. The first browser to use the invitation opens the stock Harness client at the selected session. Host-level administration that Harness reserves for loopback remains unavailable remotely.
 
 The invitation is one-use, expires after five minutes by default, and is replaced immediately when `Generate another code` is selected.
 
@@ -59,7 +81,7 @@ Phone and tablet browsers automatically receive Mobile View when the viewport is
 
 The stock Harness Web interface is difficult to operate on a phone: persistent desktop navigation consumes the viewport, session controls compete with the conversation title, several actions depend on hover or long press, and subagent information is too dense for a narrow screen. Mobile View makes that existing interface usable without introducing a second client or duplicating Harness business logic.
 
-| Stock narrow-screen behavior | Mobile View in `0.2.0` |
+| Stock narrow-screen behavior | Mobile View in `0.2.x` |
 | --- | --- |
 | Desktop navigation competes with the conversation | Workspace and session navigation opens as a dismissible left drawer |
 | Session metadata crowds the header | Context, model, access, preset, activity, and export move into a compact right drawer |
@@ -75,6 +97,7 @@ The implementation changes presentation, not Harness ownership or behavior:
 - Current session opens from the header with context breakdown, model, workspace access, preset, activity, and session-log download;
 - child-agent status shows total and active counts, then opens the native nested catalog as a touch-friendly bottom sheet;
 - the Harness theme service powers a compact sun/moon action;
+- desktop-only Settings and the nested Local access action are omitted from mobile navigation, while the appearance action remains available;
 - session and active-workspace menus stay immediately available on touch screens;
 - safe areas, scrollable tabs, bounded media, and virtual-keyboard behavior are adapted for narrow viewports;
 - plugin-owned modal drawers contain keyboard focus and return it to the invoking control when closed;
@@ -88,13 +111,13 @@ These previews are captured from the running Harness client at a `430 × 932` vi
 
 ### Permissions
 
-The remote browser inherits the selected Harness session's **Read only**, **Workspace write**, or **Full access** authority. Mobile View displays that value but does not create or weaken a permission layer. Hiding `Add workspace` is a usability constraint, not an authorization boundary.
+The remote browser inherits the selected Harness session's **Read only**, **Workspace write**, or **Full access** authority. Mobile View displays that value but does not create or weaken a permission layer. This applies to ordinary session operations; Settings, credentials, native Host actions, and agent-preset authoring remain loopback-only. Hiding `Add workspace` is a usability constraint, not an authorization boundary.
 
-The responsive enhancements target viewports from 360 through 834 CSS pixels wide. The release matrix covers `360 × 800`, `390 × 844`, `430 × 932`, and `768 × 1024`, plus portrait/landscape checks on a real phone. See [Mobile View](docs/MOBILE_VIEW.md) for behavior, theme persistence, compatibility surfaces, and the complete acceptance checklist.
+The responsive enhancements target viewports from 360 through 834 CSS pixels wide. The release matrix defines checks at `360 × 800`, `390 × 844`, `430 × 932`, and `768 × 1024`; release acceptance also requires portrait and landscape checks on a real phone. See [Mobile View](docs/MOBILE_VIEW.md) for behavior, theme persistence, compatibility surfaces, and the complete acceptance checklist.
 
 ### Manage trusted browsers
 
-Use `Paired devices` in the QR panel or open `Settings → Local access`. Each new browser starts as `My device`; its subtitle is detected automatically, for example `Phone · Chrome`, `Tablet · Safari`, or `Computer · Edge`.
+On the Harness computer, use `Paired devices` in the QR panel or open `Settings → Local access`. Each new browser starts as `My device`; its subtitle is detected automatically, for example `Phone · Chrome`, `Tablet · Safari`, or `Computer · Edge`.
 
 - `Rename` changes display metadata only.
 - `Revoke` invalidates the browser credential for subsequent HTTP requests and reconnects.
@@ -214,6 +237,8 @@ Project documentation:
 
 - LAN traffic is not encrypted in the current preview gateway.
 - Revocation blocks new requests and reconnects but does not yet terminate an already-open WebSocket.
+- A light/dark choice made from a remote browser is memory-backed by Harness `0.1.1-rc.2`; reload returns to the Host preference and resolves `system` against the remote device.
+- Invitations use the highest-ranked private IPv4 interface detected at startup; choosing among multiple LAN interfaces is not exposed yet.
 - The shortcut that opens a specific Settings section uses a small semantic compatibility bridge because Harness `0.1.1-rc.2` exposes `openSection` only to onboarding.
 - Harness's footer-action container needs a compatibility layout rule when the full-width Cordis action is present.
 - Compatibility is currently pinned to DeepSeek Harness `0.1.1-rc.2` and must be retested for each supported Harness release.
@@ -223,12 +248,6 @@ Project documentation:
 ## Development disclosure
 
 The initial implementation and documentation were developed collaboratively with OpenAI Codex. Changes remain subject to maintainer review, automated tests, security review, and the same contribution requirements as human-authored changes. No runtime AI service, telemetry, or generated-code dependency is included in the package.
-
-## Acknowledgements
-
-The mobile UX research included the MIT-licensed [DSH Mobile](https://github.com/sorsama/deepseek-harness-mobile) project by its contributors. Its mobile navigation, session-details, subagent, and activity-status presentation helped inform the interaction direction used here.
-
-No DSH Mobile source code or assets are included in this package. Local Link implements its Mobile View independently in TypeScript and React, using the stock Harness client, design primitives, services, and plugin slots instead of shipping a replacement Android client.
 
 ## License
 
